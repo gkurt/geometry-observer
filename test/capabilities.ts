@@ -14,8 +14,8 @@ import { isSupported } from '#src/index.ts';
  * can design around. Measured here rather than sniffed, so the suite lights up on
  * its own if it is fixed.
  *
- * Irrelevant where anchor positioning is missing altogether: the sampling
- * fallback sees every state change by construction.
+ * Irrelevant where anchor positioning does not resolve: the sampling fallback
+ * sees every state change by construction.
  */
 async function anchorReportsTeardown(): Promise<boolean> {
   const host = document.createElement('div');
