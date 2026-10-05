@@ -153,11 +153,7 @@ describe('state', () => {
   });
 });
 
-/**
- * Teardown reporting leans on an anchor fallback that not every engine applies.
- * {@link REPORTS_TEARDOWN} measures it rather than assuming, so these light up by
- * themselves wherever it starts working.
- */
+/** Skipped where the engine can't report teardown, see {@link REPORTS_TEARDOWN}. */
 describe.skipIf(!REPORTS_TEARDOWN)('state: teardown', () => {
   test('distinguishes rendered, hidden and detached', async () => {
     const rec = recorder();
@@ -240,14 +236,18 @@ describe('lifecycle', () => {
     expect(rec.drain()).toHaveLength(1);
   });
 
-  test('takeRecords drains pending entries', async () => {
+  test('takeRecords returns pending entries instead of delivering them', async () => {
     const rec = recorder();
     observer = new GeometryObserver(rec.callback, { batch: 'frame' });
     observer.observe(box());
+    // Attaching happens in a microtask; the callback waits for the next frame.
+    await Promise.resolve();
+
     const taken = observer.takeRecords();
-    expect(taken.length).toBeGreaterThanOrEqual(0);
+    expect(taken).toHaveLength(1);
+    expect(taken[0]?.target).toBe(box());
     await quiet();
-    expect(rec.count() + taken.length).toBeGreaterThanOrEqual(1);
+    expect(rec.count()).toBe(0);
   });
 
   test('observeGeometry returns a working stop function', async () => {

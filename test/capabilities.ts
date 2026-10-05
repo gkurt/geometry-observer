@@ -3,19 +3,10 @@ import { isSupported } from '#src/index.ts';
 /**
  * Whether this engine reports a target being hidden or detached.
  *
- * Losing an anchor only raises an event because `anchor()` is given a length
- * fallback — without one the property goes invalid at computed-value time and
- * resolves to `auto`, and a length does not interpolate to `auto`. Chromium
- * applies that fallback. WebKit 26 applies it only when the probe is a direct
- * child of `<body>`; any element parent silences it, regardless of wrapper depth,
- * tree position, or whether the probe is in the top layer. The spec ties anchor
- * resolution to containing blocks, not parents, and a `position: fixed` probe's
- * containing block is always the viewport — so this is a WebKit bug, not a rule we
- * can design around. Measured here rather than sniffed, so the suite lights up on
- * its own if it is fixed.
- *
- * Irrelevant where anchor positioning does not resolve: the sampling fallback
- * sees every state change by construction.
+ * That depends on the probe's `anchor()` length fallback, which WebKit 26 ignores
+ * whenever the probe has an element parent (see `src/probe.ts`). Measured rather
+ * than assumed, so the teardown tests start running on an engine once it works.
+ * The sampling fallback always sees teardown.
  */
 async function anchorReportsTeardown(): Promise<boolean> {
   const host = document.createElement('div');
@@ -23,7 +14,7 @@ async function anchorReportsTeardown(): Promise<boolean> {
   document.body.append(host);
   const target = host.querySelector<HTMLElement>('div')!;
 
-  // Mirror the library exactly, group included — the group is what WebKit trips on.
+  // Mirror the library, wrapper included: the wrapper is what WebKit trips on.
   const group = document.createElement('div');
   group.style.setProperty('display', 'contents', 'important');
   document.body.append(group);
@@ -44,7 +35,7 @@ async function anchorReportsTeardown(): Promise<boolean> {
   try {
     probe.showPopover();
   } catch {
-    // No top layer; the measurement below still answers the question.
+    // No top layer. The measurement below still gives the answer.
   }
 
   let fired = 0;

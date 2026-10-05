@@ -3,31 +3,22 @@ import type { Track } from './types.ts';
 /** Marks the group element in the DOM, so it is identifiable in devtools and in tests. */
 export const PROBE_GROUP_ATTRIBUTE = 'data-geometry-probes';
 
-/**
- * Where the probe parks when it loses its anchor. Any length works; it only has
- * to be a length rather than `auto` — see {@link PROBE_STYLE}.
- */
+/** Where a probe goes when it loses its anchor. Any length works, see {@link PROBE_STYLE}. */
 const LOST = '-99999px';
 
 /**
- * Every declaration is written with `!important`.
+ * Every declaration is set inline with `!important`. The transition is the whole
+ * mechanism, and a reset like `* { transition: none !important }` (common in
+ * reduced-motion and test setups) would otherwise turn reporting off without any
+ * error. An important inline declaration beats an important stylesheet one.
  *
- * The transition is not decoration here, it is the entire mechanism, and a blanket
- * author reset — `* { transition: none !important }`, which plenty of reduced-motion
- * and test setups ship — otherwise switches the observer off silently: the probe
- * goes on tracking the target perfectly and simply stops reporting. An important
- * declaration in a style attribute outranks an important one in a stylesheet, so
- * this is the only placement that cannot be overridden from CSS.
+ * The fallbacks in `anchor()` and `anchor-size()` make teardown observable. With
+ * no fallback, a lost anchor makes these properties compute to `auto`, a length
+ * can't transition to `auto`, and no event fires. With one, the probe moves to the
+ * fallback position and the transition reports it.
  *
- * The fallback arguments to `anchor()` and `anchor-size()` are what make teardown
- * observable. Without them, losing the anchor leaves these properties invalid at
- * computed-value time, so they resolve to `auto` — and a length does not
- * interpolate to `auto`, so no transition runs and the target's disappearance is
- * never announced. With a fallback the value stays a length, the transition runs,
- * and the probe announces its own orphaning by parking off-screen.
- *
- * `content-visibility: hidden` costs the probe nothing — it has no contents to
- * skip — and takes a sizeable bite out of its share of every reflow.
+ * `content-visibility: hidden` changes nothing for a probe with no content, but
+ * noticeably reduces its share of each reflow.
  */
 export const PROBE_STYLE: Readonly<Record<string, string>> = {
   position: 'fixed',
@@ -51,40 +42,25 @@ const TRACKED: Readonly<Record<Track, readonly string[]>> = {
 };
 
 /**
- * 1ms of duration is all the mechanism needs; the delay is what debounces.
- *
- * Listen for `transitionstart` rather than `transitionrun`: run fires when a
- * transition is *created*, so once per frame regardless of delay, while start
- * fires once the delay has elapsed. With no delay the two coincide.
+ * The 1ms duration only needs to be non-zero; the delay implements `settle`.
+ * `transitionstart` waits for the delay, while `transitionrun` fires as soon as a
+ * transition is created, which is why the observer listens for the former.
  */
 export function transitionFor(track: Track, settle: number): string {
   return TRACKED[track].map((property) => `${property} 1ms ${settle}ms`).join(', ');
 }
 
 /**
- * Probes live inside one `display: contents` group rather than as direct children
- * of `<body>`, so the host page's body gains a single child whatever the observer
- * is watching and `body.children`, `body > *` rules and `:nth-child()` still see
- * what the page author put there.
+ * All probes share one `display: contents` wrapper, so the page's `<body>` gains
+ * one child rather than one per observed element. The wrapper generates no box,
+ * and the probes are in the top layer, so styles on the wrapper can't move them.
  *
- * `display: contents` means the group generates no box, so it can neither affect
- * layout nor become a containing block; and because the probes sit in the top
- * layer, even a page rule forcing a transform onto the group leaves them anchored
- * correctly.
- *
- * The one cost is in WebKit 26, which applies an `anchor()` length fallback only
- * when the probe is a direct child of `<body>` — any element parent silences it,
- * whatever the depth or tree position, in the top layer or out of it. That
- * fallback is what turns a lost anchor into an event, so grouping is why WebKit
- * reports no `hidden` / `detached` state. Nothing in the spec ties anchor
- * resolution to the parent element (it is defined over containing blocks, and a
- * `position: fixed` probe's containing block is always the viewport), so this is a
- * WebKit bug, and not one `contain` can paper over — `layout`, `style` and
- * `strict`, on the group or on the probe, all leave it at zero, as does dropping
- * `content-visibility`. Only removing the parent helps. Keeping the group is
- * therefore the right trade: teardown is documented as
- * best-effort on every engine, whereas a probe per observed element directly under
- * `<body>` would reshape `body.children` for every page using the library.
+ * The cost is in WebKit 26, which only applies an `anchor()` length fallback when
+ * the probe is a direct child of `<body>`. Without the fallback a lost anchor
+ * raises no event, so Safari never reports `hidden` or `detached`. Nothing in the
+ * spec ties anchor resolution to the parent element, so this looks like a WebKit
+ * bug. `contain` on the wrapper or probe doesn't help, and neither does dropping
+ * `content-visibility`.
  */
 let group: HTMLElement | null = null;
 
@@ -94,7 +70,9 @@ function probeGroup(): HTMLElement {
   group.setAttribute(PROBE_GROUP_ATTRIBUTE, '');
   group.setAttribute('aria-hidden', 'true');
   group.style.setProperty('display', 'contents', 'important');
-  document.body.append(group);
+  // `body` is typed non-null but is missing when this runs from a script in <head>.
+  const mount: HTMLElement | null = document.body ?? document.documentElement;
+  mount?.append(group);
   return group;
 }
 
@@ -105,16 +83,14 @@ export function releaseProbeGroup(): void {
   }
 }
 
-/** Probes are interchangeable, so retire them to a pool instead of churning DOM. */
+/** Probes are interchangeable, so unobserved ones are kept for reuse. */
 const pool: HTMLElement[] = [];
 
 /**
- * `popover="manual"` puts the probe in the top layer. That stops any ancestor's
- * overflow, transform, filter or containment from clipping it or stealing its
- * containing block, sidesteps the rule that an element can only anchor to
- * something preceding it in tree order, and — because the probe's containing
- * block is then the viewport rather than anything inside a transformed subtree —
- * is what makes ancestor `transform` changes show up as events at all.
+ * `popover="manual"` puts the probe in the top layer, where its containing block
+ * is the viewport. No ancestor's overflow, transform or containment applies to it,
+ * it can anchor to any element regardless of tree order, and an ancestor
+ * `transform` moves the target without moving the probe, so the change is seen.
  */
 export function createProbe(anchorName: string, track: Track, settle: number): HTMLElement {
   const probe = pool.pop() ?? document.createElement('div');
@@ -127,8 +103,7 @@ export function createProbe(anchorName: string, track: Track, settle: number): H
   try {
     probe.showPopover();
   } catch {
-    // No top layer available: the probe still anchors, it just loses clip and
-    // transform immunity.
+    // No top layer: the probe still anchors, but ancestor clips and transforms apply.
   }
   return probe;
 }

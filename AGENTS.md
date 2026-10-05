@@ -24,9 +24,9 @@ mechanical style rules. Fix the code; don't disable rules.
 
 - `src/types.ts` — the public type surface. No logic.
 - `src/support.ts` — `isSupported()`, memoised.
-- `src/probe.ts` — everything about the hidden probe element: its style, the
-  shared `display: contents` group, and the pool. The comments here record _why_
-  each declaration is what it is; several are load-bearing in non-obvious ways.
+- `src/probe.ts` — the hidden probe element: its style, the shared
+  `display: contents` wrapper, and the pool. The comments explain why each
+  declaration is there; several matter in ways that aren't obvious.
 - `src/observer.ts` — the class, plus the page-wide listener registry and the
   sampling fallback. One set of listeners serves every observer instance.
 - `src/observe-geometry.ts` — one-target convenience wrapper.
@@ -34,8 +34,10 @@ mechanical style rules. Fix the code; don't disable rules.
   peer dependency; nothing else in the package imports it.
 - `test/` — Vitest browser tests. See CONTRIBUTING.md for the split.
 - `scripts/smoke.mts` — packs the tarball, installs it into a throwaway project
-  and uses it. The only thing that covers `files`, the `exports` map and `dist`,
-  none of which the suite touches, since it imports `#src/*`.
+  and uses it. The suite imports `#src/*`, so this is the only check on `files`,
+  the `exports` map and `dist`.
+- `site/index.html` — the homepage. It imports the built `dist`, so preview it
+  with `bun run site` and a static server on `_site/`.
 
 ## Architecture
 
@@ -46,27 +48,26 @@ The mechanism is three CSS features chained into a DOM event:
 2. Those are ordinary computed values, so they are transitionable.
 3. A running transition dispatches `transitionstart`, which is the notification.
 
-The probe raises events; it is never measured. Entries always carry
-`target.getBoundingClientRect()`, because once a probe's anchor is invalid the
-probe is parked on its fallback and describes nothing.
+The probe only raises events; it is never measured. Entries always use
+`target.getBoundingClientRect()`, because a probe that lost its anchor sits at its
+fallback position and no longer describes anything.
 
-Four details are load-bearing and each has a comment at its definition:
+Four details are easy to break without noticing. Each has a comment where it's
+defined:
 
 - **`position-anchor`**, rather than naming the anchor inside each `anchor()`
   call, is what makes the engine scroll-adjust the probe.
-- **`popover="manual"`** puts the probe in the top layer, which is what makes
-  ancestor `transform` changes observable at all — a probe inside the transformed
-  subtree moves with it, so the insets never change.
-- **Length fallbacks** in `anchor(top, …)` are what make teardown observable: an
-  invalid anchor otherwise resolves to `auto`, and a length does not interpolate
-  to `auto`.
-- **`!important` on every probe declaration**, because a blanket author reset
-  (`* { transition: none !important }`) would otherwise switch the observer off
-  silently — still tracking, never reporting.
+- **`popover="manual"`** puts the probe in the top layer. Without it, a probe
+  inside a transformed subtree moves with the target, its insets never change,
+  and ancestor `transform` changes go unreported.
+- **Length fallbacks** in `anchor(top, …)` make teardown observable. Without one,
+  a lost anchor resolves to `auto`, and a length doesn't transition to `auto`.
+- **`!important` on every probe declaration**. Otherwise a reset like
+  `* { transition: none !important }` stops all reporting without any error.
 
-Scrolling cannot raise a transition (the engine adjusts for it after layout,
-which is the same reason the rect stays correct for free), so it is handled by one
-passive capture-phase listener, routed by `scroller.contains(target)`.
+Scrolling can't start a transition (the engine applies scroll offsets after
+layout), so it's handled by one passive capture-phase listener that wakes the
+targets inside the element that scrolled.
 
 ## Coding Conventions
 
@@ -84,15 +85,15 @@ passive capture-phase listener, routed by `scroller.contains(target)`.
 
 ## Measured claims
 
-The README, the code comments and the tests state specific numbers — per-probe
-reflow cost, event counts under churn, which engines report teardown. Every one of
-them came from a measurement, not an estimate. If you change behaviour one rests
-on, re-measure and update it everywhere it appears. Do not add a new performance
-or coverage claim you have not measured.
+The README, the homepage, the code comments and the tests state specific facts:
+per-probe reflow cost, event counts under churn, which engines report teardown.
+Each came from a measurement. If you change behaviour one depends on, measure
+again and update it everywhere it appears. Don't add a performance or coverage
+claim you haven't measured.
 
-Engine differences are measured too, never sniffed: `test/capabilities.ts` probes
-whether this browser reports teardown, so the suite starts covering an engine by
-itself when that engine starts supporting it.
+Engine differences are measured, not sniffed. `test/capabilities.ts` checks
+whether the current browser reports teardown, so the teardown tests start running
+on an engine once it supports it.
 
 ## Documentation
 

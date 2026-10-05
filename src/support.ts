@@ -7,21 +7,17 @@ const WITNESS = 17;
 const WITNESS_ANCHOR = '--geometry-observer-support-witness';
 
 /**
- * Whether anchor positioning resolves for the probe this library actually builds.
+ * Whether the probe this library builds actually tracks its anchor.
  *
- * Parsing is not the question. Firefox 155 accepts every declaration involved —
- * `CSS.supports()` is true for `anchor-name`, `anchor()`, `anchor-size()` and
- * `position-anchor`, and `position-anchor` computes to the right name — yet the
- * mechanism produces nothing there, for two separate reasons: `content-visibility:
- * hidden` stops the anchor resolving at all, and even without it, anchor-driven
- * geometry changes never start a transition. So the witness is the real probe,
- * `content-visibility` and top layer included, rather than a simplified stand-in
- * that would report support the mechanism does not have.
+ * Parsing support isn't enough. Firefox 155 accepts every declaration involved,
+ * but `content-visibility: hidden` stops the anchor from resolving, and without it
+ * anchor-driven changes still never start a transition. So this measures a real
+ * probe, top layer and `content-visibility` included.
  *
- * One forced layout, once per page, behind the cheap parse check below.
+ * Costs one forced layout, once per page.
  */
 function anchorsResolve(): boolean {
-  // Typed non-null, but genuinely absent if the library is first used from <head>.
+  // `body` is typed non-null but is missing when this runs from a script in <head>.
   const mount: HTMLElement | null = document.body ?? document.documentElement;
   if (mount === null) return false;
 
@@ -42,7 +38,7 @@ function anchorsResolve(): boolean {
   try {
     probe.showPopover();
   } catch {
-    // No top layer here is itself worth knowing; the measurement below still answers.
+    // No top layer. The measurement below still gives the answer.
   }
 
   const width = probe.getBoundingClientRect().width;
@@ -53,12 +49,9 @@ function anchorsResolve(): boolean {
 }
 
 /**
- * Whether this engine can run the mechanism natively.
- *
- * It needs CSS anchor positioning, which shipped in Chromium 125 and Safari 26.
- * Where it is missing — or present in name only, see {@link anchorsResolve} —
- * {@link GeometryObserver} keeps the same API and falls back to a single shared
- * sampling loop, so calling code does not have to branch.
+ * Whether this browser can run the anchor-positioning mechanism (Chromium 125+,
+ * Safari 26+). Where it can't, {@link GeometryObserver} falls back to one shared
+ * `requestAnimationFrame` loop with the same API, so callers don't need to branch.
  */
 export function isSupported(): boolean {
   if (typeof CSS === 'undefined' || typeof document === 'undefined') return false;

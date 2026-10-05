@@ -38,10 +38,9 @@ try {
   run('bun', ['run', 'build'], repo, 'build');
 
   console.log('packing');
-  const packed = JSON.parse(run('npm', ['pack', '--json', '--pack-destination', scratch], repo, 'npm pack')) as {
-    filename: string;
-    files: { path: string }[];
-  }[];
+  const packed: { filename: string; files: { path: string }[] }[] = JSON.parse(
+    run('npm', ['pack', '--json', '--pack-destination', scratch], repo, 'npm pack'),
+  );
   const entry = packed[0];
   if (entry === undefined) {
     console.error('npm pack produced nothing');
@@ -64,9 +63,9 @@ try {
   // Every path the exports map points at has to be in the tarball. A typo in a
   // `types` path otherwise goes unnoticed, because TypeScript quietly falls back
   // to the declaration file sitting next to the resolved `.js`.
-  const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')) as {
-    exports: Record<string, Record<string, string> | string>;
-  };
+  const manifest: { exports: Record<string, Record<string, string> | string> } = JSON.parse(
+    readFileSync(join(repo, 'package.json'), 'utf8'),
+  );
   for (const [subpath, target] of Object.entries(manifest.exports)) {
     const targets = typeof target === 'string' ? { default: target } : target;
     for (const [condition, file] of Object.entries(targets)) {
@@ -94,11 +93,9 @@ try {
       'console.log(JSON.stringify({ names, attribute: PROBE_GROUP_ATTRIBUTE, supported: isSupported() }));',
     ].join('\n'),
   );
-  const used = JSON.parse(run('node', ['use.mjs'], project, 'node use.mjs').trim()) as {
-    names: string[];
-    attribute: string;
-    supported: boolean;
-  };
+  const used: { names: string[]; attribute: string; supported: boolean } = JSON.parse(
+    run('node', ['use.mjs'], project, 'node use.mjs').trim(),
+  );
   check(
     used.names.every((name) => name === 'function'),
     'both entry points export callable values',

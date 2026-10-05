@@ -5,7 +5,7 @@ import type { GeometryCallback, GeometryObserverInit, ObserveOptions } from './t
 export interface UseGeometryObserverOptions extends GeometryObserverInit, ObserveOptions {}
 
 /**
- * Observe one element's geometry for the life of the component.
+ * Observes the element the returned ref is attached to, for as long as it's mounted.
  *
  * ```tsx
  * const ref = useGeometryObserver(([entry]) => {
@@ -15,22 +15,23 @@ export interface UseGeometryObserverOptions extends GeometryObserverInit, Observ
  * return <div ref={ref} />;
  * ```
  *
- * The returned ref callback is stable for the life of the component, so React
- * never detaches and reattaches it across re-renders, and it subscribes from the
- * ref itself rather than from an effect: the observer is attached the moment the
- * element exists and released by the ref's own cleanup (React 19).
+ * The returned ref callback keeps its identity across renders, and always calls
+ * the latest `callback`, so an inline function is fine. Changing `track`,
+ * `settle` or `batch` updates the existing observer through
+ * {@link GeometryObserver.reconfigure}. A new element or `anchorName`
+ * re-subscribes. Requires React 19, which runs the cleanup a ref callback returns.
  *
- * Pass whatever you like inline. The callback is read through a ref, so a fresh
- * arrow function every render costs nothing and never re-subscribes. Changing
- * `track`, `settle` or `batch` retunes the live observer, a style write per
- * observed element rather than a teardown, see
- * {@link GeometryObserver.reconfigure}. Only a new element or a new `anchorName`
- * rebuilds anything, because those decide what the probe binds to.
+ * To combine it with a ref of your own, return its cleanup and memoise the result.
+ * React calls a new ref callback on every render, so an inline one re-subscribes
+ * every time:
  *
- * To share the element with a ref of your own, call both and forward the cleanup:
- * `ref={(node) => { mine.current = node; return geometry(node); }}`. Dropping the
- * `return` still works, it just releases a beat later, through React's older
- * null-on-detach path.
+ * ```tsx
+ * const geometry = useGeometryObserver(onGeometry);
+ * const ref = useCallback((node: HTMLDivElement | null) => {
+ *   mine.current = node;
+ *   return geometry(node);
+ * }, [geometry]);
+ * ```
  */
 export function useGeometryObserver(
   callback: GeometryCallback,
@@ -38,26 +39,24 @@ export function useGeometryObserver(
 ): (node: Element | null) => (() => void) | undefined {
   const { batch, track, settle, anchorName } = options;
 
-  // Refs, not dependencies: the whole point is that an inline callback and an
-  // inline options object do not re-subscribe. Written during render so an entry
-  // arriving before effects run still reaches what this render passed in.
+  // Refs rather than dependencies, so an inline callback or options object doesn't
+  // re-subscribe. Written during render so an entry delivered before effects run
+  // still reaches this render's callback.
   const latest = useRef(callback);
   latest.current = callback;
   const current = useRef<UseGeometryObserverOptions>({ batch, track, settle, anchorName });
   current.current = { batch, track, settle, anchorName };
 
-  // What the live observer was actually built or retuned with, so the effects
-  // below can tell a real change from a re-render.
+  // The options the live observer currently has, so the effects below can tell a
+  // real change from a re-render.
   const applied = useRef<UseGeometryObserverOptions>(current.current);
   const observer = useRef<GeometryObserver | null>(null);
   const node = useRef<Element | null>(null);
 
   const attach = useCallback((element: Element | null) => {
     if (element === null) {
-      // React 19 releases through the cleanup below and never passes null. A
-      // caller composing refs by hand can still forget to forward that cleanup,
-      // which puts React back on the classic convention, so honour it too rather
-      // than leaking the observer.
+      // React only passes null when the ref returned no cleanup, which happens
+      // when a combined ref doesn't forward ours.
       observer.current?.disconnect();
       observer.current = null;
       node.current = null;

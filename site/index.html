@@ -6,48 +6,65 @@
     <title>geometry-observer</title>
     <meta
       name="description"
-      content="Event-based element position and size observation, built from CSS anchor positioning. No polling, no rAF loop."
+      content="An observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and runs nothing while the page is idle."
+    />
+    <meta property="og:title" content="geometry-observer" />
+    <meta
+      property="og:description"
+      content="An observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and runs nothing while the page is idle."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='4' fill='none' stroke='%230b6e63' stroke-width='2.5' stroke-dasharray='5 3'/%3E%3Crect x='10' y='10' width='12' height='12' rx='2' fill='%230b6e63'/%3E%3C/svg%3E"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
     />
     <style>
       :root {
-        --ground: #edf1f0;
+        color-scheme: light dark;
+        --ground: #eef2f1;
         --surface: #fbfcfc;
-        --surface-2: #e2e8e7;
-        --sunk: #e7eceb;
+        --surface-2: #e3e9e8;
+        --sunk: #e8edec;
         --ink: #0f1817;
-        --ink-2: #485855;
-        --ink-3: #77837f;
+        --ink-2: #44534f;
+        --ink-3: #74807d;
         --line: #c9d3d1;
-        --line-2: #dce3e2;
+        --line-2: #dbe2e1;
+        --grid: color-mix(in srgb, var(--ink) 5%, transparent);
         --accent: #0b6e63;
-        --accent-2: #0e8a7c;
         --accent-soft: #d2e7e3;
         --warn: #a8492a;
+        --code-bg: #10201e;
+        --code-ink: #d9e6e3;
+        --code-dim: #7d918d;
+        --code-k: #6fd6c4;
+        --code-s: #f0b48f;
+        --code-f: #b9cffd;
         --display: 'Archivo', system-ui, sans-serif;
         --body: 'IBM Plex Sans', system-ui, sans-serif;
         --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --ground: #0c1211;
-          --surface: #131a19;
-          --surface-2: #1c2524;
-          --sunk: #0f1615;
+          --ground: #0b1110;
+          --surface: #121a19;
+          --surface-2: #1a2423;
+          --sunk: #0e1514;
           --ink: #e7edeb;
-          --ink-2: #9fadaa;
+          --ink-2: #a3b1ae;
           --ink-3: #74807d;
-          --line: #293433;
-          --line-2: #1f2827;
+          --line: #283332;
+          --line-2: #1d2726;
+          --grid: color-mix(in srgb, var(--ink) 4%, transparent);
           --accent: #44c7b3;
-          --accent-2: #5fd9c6;
           --accent-soft: #0e302c;
           --warn: #e08a61;
+          --code-bg: #0e1615;
         }
       }
       * {
@@ -61,15 +78,14 @@
         background: var(--ground);
         color: var(--ink);
         font-family: var(--body);
-        font-size: 15px;
+        font-size: 15.5px;
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
       }
       .wrap {
-        max-width: 880px;
+        max-width: 1080px;
         margin: 0 auto;
         padding-inline: 20px;
-        padding-block: 56px 80px;
       }
       h1,
       h2,
@@ -78,20 +94,16 @@
         margin: 0;
         text-wrap: balance;
       }
-      h1 {
-        font-size: clamp(2.2rem, 7vw, 3.6rem);
-        font-weight: 700;
-        letter-spacing: -0.035em;
-        line-height: 1;
-      }
       h2 {
-        font-size: clamp(1.25rem, 3.4vw, 1.6rem);
-        font-weight: 600;
-        letter-spacing: -0.02em;
+        font-size: clamp(1.4rem, 3.4vw, 1.85rem);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
       }
       h3 {
-        font-size: 0.95rem;
+        font-size: 1rem;
         font-weight: 600;
+        letter-spacing: -0.01em;
       }
       p {
         margin: 0;
@@ -109,80 +121,259 @@
         padding: 0.1em 0.34em;
         border-radius: 3px;
       }
+      button {
+        font-family: var(--body);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 12px;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+      }
+      button:focus-visible,
+      input:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* ---- top bar ---- */
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-block: 18px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .mark {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        border: 1.5px dashed var(--accent);
+        border-radius: 4px;
+      }
+      .mark::after {
+        content: '';
+        position: absolute;
+        inset: 4px;
+        background: var(--accent);
+        border-radius: 1.5px;
+      }
+      .top nav {
+        display: flex;
+        gap: 18px;
+        font-size: 14px;
+      }
+      .top nav a {
+        color: var(--ink-2);
+        text-decoration: none;
+      }
+      .top nav a:hover {
+        color: var(--accent);
+      }
+
+      /* ---- hero ---- */
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 36px;
+        align-items: center;
+        padding-block: 40px 64px;
+      }
+      @media (min-width: 900px) {
+        .hero {
+          grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+          gap: 48px;
+          padding-block: 64px 88px;
+        }
+      }
+      .hero h1 {
+        font-size: clamp(2.5rem, 6.4vw, 4.1rem);
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 0.98;
+      }
+      .hero h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .lead {
+        margin-top: 22px;
+        font-size: clamp(1.02rem, 2.2vw, 1.14rem);
+        color: var(--ink-2);
+        max-width: 50ch;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 10px;
+        margin-top: 28px;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 7px;
+        padding: 0 16px;
+        min-height: 42px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+      }
+      .button:hover {
+        border-color: var(--accent);
+      }
+      .button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--ground);
+      }
+      .button.primary:hover {
+        filter: brightness(1.08);
+      }
+      .install {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        padding: 4px 4px 4px 6px;
+        min-height: 42px;
+        max-width: 100%;
+      }
+      .install select {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-2);
+        background: var(--sunk);
+        border: 0;
+        border-radius: 4px;
+        padding: 4px 6px;
+        cursor: pointer;
+      }
+      .install code {
+        font-size: 13px;
+        background: none;
+        padding: 0 6px;
+        white-space: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      .install button {
+        border: 0;
+        background: none;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--ink-3);
+        padding: 6px 8px;
+      }
+      .install button:hover {
+        background: var(--sunk);
+      }
+
+      .code {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 24px 48px -32px color-mix(in srgb, #000 70%, transparent);
+        border: 1px solid color-mix(in srgb, var(--code-ink) 8%, transparent);
+      }
+      .code-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 8px 10px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--code-ink) 10%, transparent);
+      }
+      .code-tabs button {
+        background: none;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        color: var(--code-dim);
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 6px 10px 8px;
+      }
+      .code-tabs button:hover:not(:disabled) {
+        background: none;
+        color: var(--code-ink);
+      }
+      .code-tabs button[aria-selected='true'] {
+        color: var(--code-ink);
+        border-bottom-color: var(--code-k);
+      }
       pre {
         margin: 0;
-        background: var(--sunk);
-        border: 1px solid var(--line-2);
-        border-radius: 6px;
-        padding: 14px 16px;
+        padding: 18px 20px;
         overflow-x: auto;
         font-family: var(--mono);
-        font-size: 12.5px;
+        font-size: 13px;
         line-height: 1.7;
       }
       pre .c {
-        color: var(--ink-3);
+        color: var(--code-dim);
       }
       pre .k {
-        color: var(--accent);
+        color: var(--code-k);
       }
-      header {
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        border-bottom: 1px solid var(--line);
-        padding-bottom: 32px;
+      pre .s {
+        color: var(--code-s);
       }
-      .deck {
-        font-size: clamp(1rem, 2.4vw, 1.12rem);
-        color: var(--ink-2);
-        max-width: 60ch;
+      pre .f {
+        color: var(--code-f);
       }
-      .deck b {
-        color: var(--ink);
-        font-weight: 600;
+      .unsupported {
+        margin-top: 20px;
+        border: 1px solid var(--warn);
+        background: color-mix(in srgb, var(--warn) 10%, transparent);
+        color: var(--warn);
+        border-radius: 7px;
+        padding: 10px 14px;
+        font-size: 14px;
+        max-width: 56ch;
       }
-      .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .links a {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border: 1px solid var(--line);
-        background: var(--surface);
-        border-radius: 6px;
-        padding: 7px 12px;
-        font-size: 13px;
-        text-decoration: none;
-        color: var(--ink);
-      }
-      .links a:hover {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-      }
+
+      /* ---- sections ---- */
       section {
-        margin-top: 48px;
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
+        padding-block: 64px;
+        border-top: 1px solid var(--line);
       }
-      .prose {
-        max-width: 66ch;
+      .head {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
+        margin-bottom: 28px;
+        max-width: 64ch;
+      }
+      .head p {
         color: var(--ink-2);
-      }
-      .prose strong {
-        color: var(--ink);
-        font-weight: 600;
       }
       .panel {
         border: 1px solid var(--line);
-        border-radius: 8px;
+        border-radius: 10px;
         background: var(--surface);
         overflow: hidden;
       }
@@ -191,54 +382,65 @@
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        flex-wrap: wrap;
-        padding: 8px 14px;
-        background: var(--surface-2);
+        padding: 9px 14px;
         border-bottom: 1px solid var(--line);
         font-family: var(--mono);
         font-size: 11px;
-        letter-spacing: 0.07em;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: var(--ink-2);
+        color: var(--ink-3);
       }
       .bar .live {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 7px;
         color: var(--accent);
         text-transform: none;
+        letter-spacing: 0.02em;
       }
       .dot {
-        width: 6px;
-        height: 6px;
+        width: 7px;
+        height: 7px;
         border-radius: 50%;
         background: var(--accent);
       }
-      .body {
-        padding: 16px;
+      .paper {
+        background-color: var(--sunk);
+        background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 16px 16px;
+        background-position: -1px -1px;
       }
-      .note {
-        padding: 10px 14px;
-        border-top: 1px solid var(--line-2);
-        background: var(--sunk);
-        font-size: 12.5px;
-        color: var(--ink-2);
+
+      /* ---- demo 1 ---- */
+      .demo {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
       }
-      .note b {
-        color: var(--ink);
+      @media (min-width: 820px) {
+        .demo {
+          grid-template-columns: minmax(0, 1fr) 248px;
+        }
+        .demo aside {
+          border-top: 0;
+          border-left: 1px solid var(--line);
+        }
       }
       .stage {
         position: relative;
-        background: var(--sunk);
-        border: 1px dashed var(--line);
-        border-radius: 6px;
-        padding: 16px 16px 46px;
-        min-height: 190px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 48px 28px 72px;
+        min-height: 340px;
+      }
+      #shifted {
+        width: 100%;
+        max-width: 340px;
       }
       .blk {
-        background: color-mix(in srgb, var(--ink) 6%, transparent);
-        border: 1px solid var(--line-2);
-        border-radius: 4px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 5px;
         padding: 8px 10px;
         font-family: var(--mono);
         font-size: 11.5px;
@@ -248,101 +450,90 @@
       #target {
         background: var(--accent-soft);
         border: 1px solid var(--accent);
-        border-radius: 4px;
+        border-radius: 5px;
         /* Room at the top for the x/y chip, which sits inside the corner. */
-        padding: 28px 12px 12px;
-        width: 230px;
-        height: 84px;
+        padding: 30px 12px 12px;
+        width: 240px;
+        height: 96px;
         resize: both;
         overflow: auto;
-        min-width: 120px;
-        min-height: 56px;
+        min-width: 140px;
+        min-height: 60px;
         font-size: 13px;
         line-height: 1.45;
         color: var(--ink);
         anchor-name: --demo-target;
       }
-      .controls {
+      .demo aside {
         display: flex;
-        flex-wrap: wrap;
+        flex-direction: column;
+        gap: 16px;
+        padding: 18px;
+        border-top: 1px solid var(--line);
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 6px;
-        margin-top: 14px;
-        align-items: center;
       }
-      button {
-        font-family: var(--body);
-        font-size: 12.5px;
-        font-weight: 500;
-        color: var(--ink);
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 6px 11px;
-        cursor: pointer;
+      .controls button {
+        text-align: left;
       }
-      button:hover:not(:disabled) {
-        background: var(--accent-soft);
-        border-color: var(--accent);
-      }
-      button:disabled {
-        opacity: 0.45;
-        cursor: default;
-      }
-      button:focus-visible,
-      input:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 2px;
+      .group-label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        margin-bottom: 8px;
       }
       label.chk {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 12.5px;
+        gap: 8px;
+        font-size: 13px;
         color: var(--ink-2);
         cursor: pointer;
-        padding: 6px 10px;
-        border: 1px dashed var(--line);
-        border-radius: 6px;
       }
       label.chk input {
         accent-color: var(--accent);
         cursor: pointer;
+        margin: 0;
       }
       .readout {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+        grid-template-columns: 1fr;
         gap: 1px;
         background: var(--line-2);
         border: 1px solid var(--line-2);
-        border-radius: 6px;
+        border-radius: 7px;
         overflow: hidden;
-        margin-top: 14px;
       }
       .readout div {
         background: var(--sunk);
         padding: 7px 10px;
         display: flex;
-        flex-direction: column;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
       }
       .readout .k {
         font-family: var(--mono);
-        font-size: 9.5px;
-        letter-spacing: 0.1em;
+        font-size: 10.5px;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--ink-3);
-        white-space: nowrap;
       }
       .readout .v {
         font-family: var(--mono);
         font-size: 14px;
         font-weight: 500;
         font-variant-numeric: tabular-nums;
-      }
-      .readout .v.hot {
         color: var(--accent);
       }
-      .readout .v.cold {
-        color: var(--warn);
+      .hint {
+        font-size: 12.5px;
+        color: var(--ink-3);
       }
       #caliper {
         margin: 0;
@@ -358,18 +549,13 @@
         left: anchor(left);
         width: anchor-size(width);
         height: anchor-size(height);
-        transition:
-          top 1ms,
-          left 1ms,
-          width 1ms,
-          height 1ms;
       }
       #caliper::before {
         content: '';
         position: absolute;
         inset: -5px;
         border: 1.5px dashed var(--warn);
-        border-radius: 4px;
+        border-radius: 5px;
       }
       #caliper::after {
         content: 'probe';
@@ -380,149 +566,19 @@
         font-size: 10px;
         letter-spacing: 0.06em;
         color: var(--warn);
-        background: var(--ground);
+        background: var(--sunk);
         padding: 0 4px;
         border-radius: 2px;
       }
-      .tbl {
-        overflow-x: auto;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        min-width: 560px;
-        font-size: 13.5px;
-        background: var(--surface);
-      }
-      th,
-      td {
-        text-align: left;
-        padding: 9px 13px;
-        border-bottom: 1px solid var(--line-2);
-      }
-      thead th {
-        background: var(--sunk);
-        font-family: var(--mono);
-        font-size: 10.5px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--ink-2);
-        font-weight: 500;
-        white-space: nowrap;
-      }
-      tbody tr:last-child td {
-        border-bottom: 0;
-      }
-      td {
-        color: var(--ink-2);
-      }
-      td:first-child {
-        color: var(--ink);
-        font-weight: 500;
-      }
-      .y {
-        color: var(--accent);
-        font-weight: 600;
-      }
-      .n {
-        color: var(--warn);
-        font-weight: 600;
-      }
-      .unsupported {
-        border: 1px solid var(--warn);
-        background: color-mix(in srgb, var(--warn) 10%, transparent);
-        color: var(--warn);
-        border-radius: 6px;
-        padding: 11px 14px;
-        font-size: 14px;
-      }
-      footer {
-        margin-top: 56px;
-        padding-top: 20px;
-        border-top: 1px solid var(--line);
-        font-family: var(--mono);
-        font-size: 11.5px;
-        color: var(--ink-3);
-      }
 
-      .lede {
-        color: var(--ink-2);
-        max-width: 62ch;
-      }
-      details.how {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--surface);
-        padding: 12px 16px;
-      }
-      details.how > summary {
-        cursor: pointer;
-        font-family: var(--display);
-        font-weight: 600;
-        font-size: 0.95rem;
-      }
-      details.how > *:not(summary) {
-        margin-top: 12px;
-      }
-
-      /* ---- install picker ---- */
-      .install {
-        border: 1px solid var(--line-2);
-        border-radius: 6px;
-        background: var(--sunk);
-        overflow: hidden;
-        max-width: 420px;
-      }
-      .install-tabs {
-        display: flex;
-        gap: 2px;
-        padding: 5px 5px 0;
-      }
-      .install-tabs button {
-        border: 0;
-        border-radius: 5px 5px 0 0;
-        background: none;
-        color: var(--ink-3);
-        font-family: var(--mono);
-        font-size: 11.5px;
-        padding: 5px 11px;
-      }
-      .install-tabs button[aria-selected='true'] {
-        background: var(--surface);
-        color: var(--accent);
-      }
-      .install-cmd {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        background: var(--surface);
-        padding: 11px 12px;
-      }
-      .install-cmd code {
-        flex: 1 1 auto;
-        font-size: 12.5px;
-        background: none;
-        padding: 0;
-        overflow-x: auto;
-        white-space: nowrap;
-      }
-      .copy {
-        flex: 0 0 auto;
-        font-family: var(--mono);
-        font-size: 11px;
-        padding: 4px 9px;
-        color: var(--ink-2);
-      }
-
-      /* ---- dimension overlay, on the live demo ---- */
+      /* ---- dimension overlay ---- */
       .dim {
         position: absolute;
         pointer-events: none;
         color: var(--accent);
       }
-      .dim[hidden] {
+      .dim[hidden],
+      .dim-xy[hidden] {
         display: none;
       }
       .dim-w {
@@ -569,7 +625,7 @@
         font-size: 10.5px;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
-        background: var(--ground);
+        background: var(--sunk);
         color: var(--accent);
         padding: 0 5px;
         border-radius: 3px;
@@ -589,23 +645,17 @@
         pointer-events: none;
         line-height: 1;
       }
-      .dim-xy[hidden] {
-        display: none;
-      }
       .dim-xy .chip {
         position: static;
         display: inline-block;
-        background: color-mix(in srgb, var(--ground) 72%, transparent);
+        background: color-mix(in srgb, var(--surface) 70%, transparent);
         color: var(--warn);
       }
 
       /* ---- node graph ---- */
       .graph {
         position: relative;
-        height: 340px;
-        background: var(--sunk);
-        border: 1px dashed var(--line);
-        border-radius: 6px;
+        height: 380px;
         overflow: hidden;
         touch-action: none;
       }
@@ -624,41 +674,48 @@
       }
       #graphSvg circle {
         fill: var(--accent);
-        opacity: 0.85;
       }
       .node {
         position: absolute;
         background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 8px 10px;
+        border-radius: 7px;
+        padding: 9px 11px;
         font-size: 12px;
         line-height: 1.35;
         color: var(--ink-2);
         cursor: grab;
         resize: both;
         overflow: hidden;
-        min-width: 92px;
-        min-height: 46px;
-        /* Capped so the resize handle cannot ask for a node the canvas has no
-           room to separate, which clamping and separation would then fight over. */
+        min-width: 96px;
+        min-height: 48px;
+        /* Capped so a resized node always fits in the canvas next to the others. */
         max-width: 260px;
         max-height: 148px;
         user-select: none;
         -webkit-user-select: none;
         z-index: 1;
-        box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent);
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent);
       }
       .node b {
         display: block;
         font-family: var(--mono);
         font-size: 10.5px;
+        font-weight: 500;
         color: var(--accent);
       }
-      /* A popover, so the tooltip lives in the top layer and is not clipped by the
-         scene's own overflow. Every UA popover default has to be undone: inset 0,
-         auto margins, a solid border and padding would otherwise place it dead
-         centre on screen. */
+      .node.pinned {
+        border-color: var(--accent);
+      }
+      .node.dragging {
+        cursor: grabbing;
+        border-color: var(--accent);
+        z-index: 3;
+        box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--ink) 55%, transparent);
+      }
+      /* A popover, so it renders in the top layer and the graph's overflow can't
+         clip it. The UA popover styles (inset 0, auto margins, border, padding)
+         would otherwise centre it on screen. */
       .tip {
         position: fixed;
         inset: auto;
@@ -678,15 +735,6 @@
         translate: -50% calc(-100% - 11px);
         box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--ink) 70%, transparent);
       }
-      .tip.below {
-        translate: -50% 11px;
-      }
-      .tip.pinned {
-        background: var(--accent);
-      }
-      .tip.pinned::after {
-        background: var(--accent);
-      }
       .tip::after {
         content: '';
         position: absolute;
@@ -694,223 +742,540 @@
         bottom: -3px;
         width: 7px;
         height: 7px;
-        background: var(--ink);
+        background: inherit;
         rotate: 45deg;
         translate: -50% 0;
+      }
+      .tip.below {
+        translate: -50% 11px;
       }
       .tip.below::after {
         bottom: auto;
         top: -3px;
       }
-      .node.pinned {
-        border-color: var(--accent);
+      .tip.pinned {
+        background: var(--accent);
       }
-      .node.dragging {
-        cursor: grabbing;
-        border-color: var(--accent);
-        z-index: 3;
-        box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--ink) 55%, transparent);
+      .note {
+        padding: 11px 14px;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+
+      /* ---- how it works ---- */
+      .steps {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        counter-reset: step;
+      }
+      @media (min-width: 760px) {
+        .steps {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .step {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .step::before {
+        counter-increment: step;
+        content: counter(step);
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .step p {
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      .how-code {
+        margin-top: 12px;
+        box-shadow: none;
+      }
+      .aside-note {
+        margin-top: 16px;
+        font-size: 14px;
+        color: var(--ink-2);
+        max-width: 72ch;
+      }
+
+      /* ---- tables ---- */
+      .tbl {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 640px;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line-2);
+      }
+      thead th {
+        background: var(--sunk);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        color: var(--ink-2);
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      thead th.us {
+        color: var(--accent);
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        color: var(--ink-2);
+      }
+      td:first-child {
+        color: var(--ink);
+      }
+      td.us {
+        background: color-mix(in srgb, var(--accent) 6%, transparent);
+      }
+      .y {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .n {
+        color: var(--ink-3);
+      }
+      .bad {
+        color: var(--warn);
+        font-weight: 600;
+      }
+      .after-table {
+        margin-top: 16px;
+        color: var(--ink-2);
+        max-width: 72ch;
+      }
+
+      /* ---- limits ---- */
+      .limits {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      @media (min-width: 760px) {
+        .limits {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .limit {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .limit p {
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      h3.sub {
+        margin: 8px 0 14px;
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding-block: 28px 48px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      footer a {
+        color: var(--ink-2);
       }
 
       @media (max-width: 560px) {
-        .wrap {
-          padding-block: 36px 56px;
+        section {
+          padding-block: 48px;
+        }
+        .stage {
+          padding: 40px 16px 64px;
+          min-height: 260px;
         }
         .graph {
-          height: 300px;
+          height: 340px;
         }
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <header>
-        <h1>geometry-observer</h1>
-        <p class="deck">
-          The layout engine tells you when an element moved or resized. <b>No polling, no <code>requestAnimationFrame</code> loop</b>, and
-          no main-thread work at all while nothing changes.
-        </p>
-        <div class="links">
+      <div class="top">
+        <a class="brand" href="./"><span class="mark" aria-hidden="true"></span>geometry-observer</a>
+        <nav>
+          <a href="https://github.com/gkurt/geometry-observer#api">Docs</a>
           <a href="https://github.com/gkurt/geometry-observer">GitHub</a>
           <a href="https://www.npmjs.com/package/geometry-observer">npm</a>
-          <a href="https://github.com/gkurt/geometry-observer#api">API</a>
-        </div>
-        <div class="install">
-          <div class="install-tabs" role="tablist" aria-label="Package manager">
-            <button type="button" role="tab" aria-selected="true" data-cmd="bun add geometry-observer">bun</button>
-            <button type="button" role="tab" aria-selected="false" data-cmd="npm install geometry-observer">npm</button>
-            <button type="button" role="tab" aria-selected="false" data-cmd="pnpm add geometry-observer">pnpm</button>
-            <button type="button" role="tab" aria-selected="false" data-cmd="yarn add geometry-observer">yarn</button>
+        </nav>
+      </div>
+
+      <header class="hero">
+        <div>
+          <h1>Know when an element <em>moves</em>.</h1>
+          <p class="lead">
+            geometry-observer reports changes to an element's position and size, including the ones caused by other elements, like a sibling
+            growing above it. It's built on CSS anchor positioning, so nothing polls, and no JavaScript runs while the page is idle.
+          </p>
+          <div class="actions">
+            <div class="install">
+              <select id="pm" aria-label="Package manager">
+                <option value="npm install">npm</option>
+                <option value="pnpm add">pnpm</option>
+                <option value="yarn add">yarn</option>
+                <option value="bun add">bun</option>
+              </select>
+              <code id="installCmd">npm install geometry-observer</code>
+              <button type="button" id="installCopy">Copy</button>
+            </div>
+            <a class="button primary" href="https://github.com/gkurt/geometry-observer#usage">Read the docs</a>
           </div>
-          <div class="install-cmd">
-            <code id="installCmd">bun add geometry-observer</code>
-            <button type="button" class="copy" id="installCopy">Copy</button>
-          </div>
+          <p id="unsupported" class="unsupported" hidden>
+            This browser can't run the anchor-based mechanism, so the demos below use the fallback, which checks every frame. The API is the
+            same.
+          </p>
         </div>
-        <p id="unsupported" class="unsupported" hidden>
-          This browser doesn't implement CSS anchor positioning, so the demo below is running on the sampling fallback instead. The API is
-          identical; the cost is not.
-        </p>
+
+        <div class="code">
+          <div class="code-tabs" role="tablist" aria-label="Example">
+            <button type="button" role="tab" aria-selected="true" aria-controls="codeJs">JavaScript</button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="codeReact">React</button>
+          </div>
+          <pre
+            id="codeJs"
+            role="tabpanel"
+          ><span class="k">import</span> { GeometryObserver } <span class="k">from</span> <span class="s">'geometry-observer'</span>;
+
+<span class="k">const</span> observer = <span class="k">new</span> <span class="f">GeometryObserver</span>((entries) => {
+  <span class="k">for</span> (<span class="k">const</span> { target, rect, moved } <span class="k">of</span> entries) {
+    <span class="k">if</span> (moved) <span class="f">placeTooltip</span>(target, rect);
+  }
+});
+
+observer.<span class="f">observe</span>(button);</pre>
+          <pre
+            id="codeReact"
+            role="tabpanel"
+            hidden
+          ><span class="k">import</span> { useGeometryObserver } <span class="k">from</span> <span class="s">'geometry-observer/react'</span>;
+
+<span class="k">function</span> <span class="f">HelpButton</span>() {
+  <span class="k">const</span> ref = <span class="f">useGeometryObserver</span>(([entry]) => {
+    <span class="f">placeTooltip</span>(entry.target, entry.rect);
+  });
+  <span class="k">return</span> &lt;button ref={ref}&gt;Help&lt;/button&gt;;
+}</pre>
+        </div>
       </header>
 
       <section>
-        <h2>Watch an element move</h2>
-        <p class="lede">
-          Resize the box by its corner, or change the layout around it. The dashed frame is the probe, placed entirely by CSS. Every number
-          on screen arrives in an observer callback, position included, which is the part <code>ResizeObserver</code> never reports.
-        </p>
+        <div class="head">
+          <h2>Try it</h2>
+          <p>
+            Resize the box from its corner, or use the buttons to change the layout around it. Every number on the overlay comes from an
+            observer callback. The dashed outline is a visible copy of the probe the library uses.
+          </p>
+        </div>
         <div class="panel">
           <div class="bar">
-            <span>GeometryObserver</span><span class="live"><span class="dot"></span><span id="mode">every change</span></span>
+            <span>new GeometryObserver(…)</span><span class="live"><span class="dot"></span><span id="mode">every change</span></span>
           </div>
-          <div class="body">
-            <div class="stage" id="stage">
+          <div class="demo">
+            <div class="stage paper" id="stage">
               <div id="shifted">
                 <div id="blocks"></div>
-                <div id="target"><b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.</div>
+                <div id="target"><b>Observed element.</b> Drag the corner to resize me.</div>
               </div>
               <div class="dim dim-w" id="dimW" hidden><span class="chip">0 px</span></div>
               <div class="dim dim-h" id="dimH" hidden><span class="chip">0 px</span></div>
               <div class="dim-xy" id="dimXY" hidden><span class="chip">x 0, y 0</span></div>
             </div>
-            <div class="controls">
-              <button type="button" id="insert">Insert block above</button>
-              <button type="button" id="remove">Remove block</button>
-              <button type="button" id="text">Add text inside</button>
-              <button type="button" id="shift">Shift ancestor</button>
-              <button type="button" id="hide">Hide / show</button>
-              <button type="button" id="reset">Reset</button>
-              <label class="chk"><input type="checkbox" id="settle" /> settle 250ms</label>
-            </div>
-            <div class="readout">
-              <div><span class="k">state</span><span class="v hot" id="rs">rendered</span></div>
-              <div><span class="k">events</span><span class="v hot" id="rev">0</span></div>
-              <div><span class="k">rAF samples avoided</span><span class="v cold" id="rav">0</span></div>
-            </div>
+            <aside>
+              <div>
+                <div class="group-label">Change the layout</div>
+                <div class="controls">
+                  <button type="button" id="insert">Insert block above</button>
+                  <button type="button" id="remove">Remove block</button>
+                  <button type="button" id="text">Add text inside</button>
+                  <button type="button" id="shift">Move the parent</button>
+                  <button type="button" id="hide">Hide / show</button>
+                  <button type="button" id="reset">Reset</button>
+                </div>
+              </div>
+              <label class="chk"
+                ><input type="checkbox" id="settle" /> <span><code>settle: 250</code></span></label
+              >
+              <div class="readout">
+                <div><span class="k">state</span><span class="v" id="rs">rendered</span></div>
+                <div><span class="k">entries</span><span class="v" id="rev">0</span></div>
+                <div><span class="k">idle for</span><span class="v" id="idle">0.0 s</span></div>
+              </div>
+              <p class="hint">"Idle for" counts up while nothing changes. The observer isn't running then.</p>
+            </aside>
           </div>
         </div>
       </section>
 
       <section>
-        <h2>A node graph</h2>
-        <p class="lede">
-          Drag a node, or resize it by its corner. Nodes shove each other aside so no two ever overlap, and the edges stay attached through
-          the whole cascade. Hover one for a tooltip, or click to pin it open and hover another. They ride in the top layer, so they spill
-          past the edge of the scene instead of being clipped by it. Every rect behind all of this arrives in a callback, and when the graph
-          is still nothing runs at all.
-        </p>
+        <div class="head">
+          <h2>Elements moved by other elements</h2>
+          <p>
+            Drag a node or resize it from its corner. Overlapping nodes push each other apart, and the edges follow. The page only moves the
+            node you drag. The others are pushed from the observer callback, and the edges and tooltips are drawn from the rects it reports.
+            Hover a node for its tooltip, or click to pin it.
+          </p>
+        </div>
         <div class="panel">
           <div class="bar">
-            <span>Node graph</span><span class="live"><span class="dot"></span><span id="graphEvents">0 events</span></span>
+            <span>Node graph</span><span class="live"><span class="dot"></span><span id="graphEvents">0 entries</span></span>
           </div>
-          <div class="body">
-            <div class="graph" id="graph"><svg id="graphSvg" aria-hidden="true"></svg></div>
-          </div>
+          <div class="graph paper" id="graph"><svg id="graphSvg" aria-hidden="true"></svg></div>
           <div class="note">
-            A pushed node moves because of something that happened to a <b>different</b> element. That is the case no other observer
-            reports.
+            The tooltips are popovers in the top layer, so they can extend past the edge of the graph without being clipped.
           </div>
         </div>
       </section>
 
       <section>
-        <h2>What fires</h2>
+        <div class="head">
+          <h2>How it works</h2>
+          <p>Three CSS features turn a layout change into a DOM event.</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <h3>Anchor</h3>
+            <p>
+              Each target gets a hidden probe in the top layer. <code>anchor()</code> and <code>anchor-size()</code> keep the probe's box
+              equal to the target's.
+            </p>
+          </div>
+          <div class="step">
+            <h3>Transition</h3>
+            <p>The probe's <code>top</code>, <code>left</code>, <code>width</code> and <code>height</code> have a 1ms transition.</p>
+          </div>
+          <div class="step">
+            <h3>Event</h3>
+            <p>
+              When layout moves the target, the probe's transition starts and fires <code>transitionstart</code>. The observer reads the
+              target's rect.
+            </p>
+          </div>
+        </div>
+        <div class="code how-code">
+          <pre><span class="c">/* A simplified probe. The real one also has fallbacks and is a popover. */</span>
+.probe {
+  position: fixed;
+  <span class="k">position-anchor</span>: --target;
+  <span class="k">top</span>: anchor(top);
+  <span class="k">left</span>: anchor(left);
+  <span class="k">width</span>: anchor-size(width);
+  <span class="k">height</span>: anchor-size(height);
+  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;
+}</pre>
+        </div>
+        <p class="aside-note">
+          Scrolling doesn't change the probe's computed values, so it can't start a transition. The library covers it with one passive
+          scroll listener for the whole page, and only re-measures targets inside the element that scrolled.
+        </p>
+      </section>
+
+      <section>
+        <div class="head">
+          <h2>Compared with the alternatives</h2>
+        </div>
         <div class="tbl">
           <table>
             <thead>
               <tr>
                 <th>Change</th>
-                <th>geometry-observer</th>
+                <th class="us">geometry-observer</th>
                 <th>ResizeObserver</th>
                 <th>IntersectionObserver</th>
+                <th>rAF polling</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>Element resized</td>
-                <td class="y">event</td>
-                <td class="y">event</td>
-                <td class="n">no</td>
+                <td class="us y">yes</td>
+                <td class="y">yes</td>
+                <td class="n">—</td>
+                <td class="y">yes</td>
               </tr>
               <tr>
                 <td>A sibling above it grew</td>
-                <td class="y">event</td>
-                <td class="n">no</td>
-                <td class="n">re-arm only</td>
+                <td class="us y">yes</td>
+                <td class="n">—</td>
+                <td>if rebuilt each time</td>
+                <td class="y">yes</td>
               </tr>
               <tr>
                 <td>A node was inserted above it</td>
-                <td class="y">event</td>
-                <td class="n">no</td>
-                <td class="n">re-arm only</td>
+                <td class="us y">yes</td>
+                <td class="n">—</td>
+                <td>if rebuilt each time</td>
+                <td class="y">yes</td>
               </tr>
               <tr>
                 <td>An ancestor <code>transform</code> changed</td>
-                <td class="y">event</td>
-                <td class="n">no</td>
-                <td class="n">no</td>
+                <td class="us y">yes</td>
+                <td class="n">—</td>
+                <td class="n">—</td>
+                <td class="y">yes</td>
               </tr>
               <tr>
                 <td>Scrolled</td>
-                <td class="y">routed <code>scroll</code></td>
-                <td class="n">no</td>
-                <td class="y">event</td>
+                <td class="us y">yes</td>
+                <td class="n">—</td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
               </tr>
               <tr>
                 <td>Hidden with <code>display: none</code></td>
-                <td class="y"><code>state: hidden</code></td>
-                <td>0×0, ambiguous</td>
-                <td class="n">no</td>
+                <td class="us y"><code>state: 'hidden'</code></td>
+                <td>0×0</td>
+                <td class="n">—</td>
+                <td>0×0</td>
               </tr>
               <tr>
-                <td>Detached</td>
-                <td class="y"><code>state: detached</code></td>
-                <td>0×0, ambiguous</td>
-                <td class="n">no</td>
+                <td>Removed from the document</td>
+                <td class="us y"><code>state: 'detached'</code></td>
+                <td>0×0</td>
+                <td class="n">—</td>
+                <td>0×0</td>
               </tr>
               <tr>
-                <td>Cost while nothing moves</td>
-                <td class="y">zero</td>
-                <td class="y">zero</td>
-                <td class="y">zero</td>
+                <td>Work while the page is idle</td>
+                <td class="us y">none</td>
+                <td class="y">none</td>
+                <td class="y">none</td>
+                <td class="bad">every frame</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="lede">
-          The middle rows are the point: “a sibling above me grew, so I moved” is the most common way an element changes position, and no
-          other observer reports it.
+        <p class="after-table">
+          Most position changes come from something else in the layout: a sibling growing, content loading above, an ancestor's padding.
+          <code>ResizeObserver</code> misses all of them.
         </p>
       </section>
 
       <section>
-        <h2>Honest about the cost</h2>
-        <p class="lede">
-          A probe is a real box, so it adds time to <em>every</em> reflow, even ones where nothing it watches moved. A sampler instead pays
-          on every frame, moving or not. The two meet at a low single-digit number of reflows per second, which makes this an
-          <strong>idle-cost and coverage win, not a throughput win</strong>.
-        </p>
+        <div class="head">
+          <h2>Limits</h2>
+        </div>
+        <div class="limits">
+          <div class="limit">
+            <h3>The cost is per reflow, not per frame</h3>
+            <p>
+              Each probe is a box the browser lays out, so it adds a little to every reflow on the page. A rAF loop costs the same every
+              frame instead. They break even at a low single-digit number of reflows per second, so under constant layout churn, one shared
+              rAF loop is cheaper.
+            </p>
+          </div>
+          <div class="limit">
+            <h3>Safari doesn't report teardown</h3>
+            <p>
+              WebKit ignores the <code>anchor()</code> fallback that turns a lost anchor into an event, so Safari never reports
+              <code>hidden</code> or <code>detached</code>. Unobserve elements from the code that removes them.
+            </p>
+          </div>
+          <div class="limit">
+            <h3>Composited animations lag slightly</h3>
+            <p>
+              During a composited transform animation, the reported rect trails by about half a frame. It's exact once the animation stops.
+            </p>
+          </div>
+          <div class="limit">
+            <h3>Firefox uses the fallback</h3>
+            <p>
+              Firefox accepts the CSS, but anchor-driven changes never start a transition there. The observer detects this and checks every
+              frame instead, with the same API.
+            </p>
+          </div>
+        </div>
 
-        <details class="how">
-          <summary>How it works</summary>
-          <p class="lede">
-            <code>anchor()</code> and <code>anchor-size()</code> resolve a target's box into computed lengths on a hidden probe. Computed
-            lengths transition. A running transition dispatches a DOM event. That's the whole trick.
-          </p>
-          <pre><span class="c">/* the probe: a top-layer element mirroring #target's box */</span>
-#probe {
-  position: fixed;
-  <span class="k">position-anchor</span>: --target;
-  <span class="k">top</span>: anchor(top);   <span class="k">left</span>:   anchor(left);
-  <span class="k">width</span>: anchor-size(width); <span class="k">height</span>: anchor-size(height);
-  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;  <span class="c">/* the tap */</span>
-}</pre>
-        </details>
+        <h3 class="sub">Browser support</h3>
+        <div class="tbl">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Chromium 125+</th>
+                <th>Safari 26+</th>
+                <th>Firefox</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Mechanism</td>
+                <td>anchor probes</td>
+                <td>anchor probes</td>
+                <td>sampling fallback</td>
+              </tr>
+              <tr>
+                <td>Position, size and layout-driven moves</td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
+              </tr>
+              <tr>
+                <td>Ancestor <code>transform</code></td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
+              </tr>
+              <tr>
+                <td><code>hidden</code> / <code>detached</code> state</td>
+                <td class="y">yes</td>
+                <td class="bad">no</td>
+                <td class="y">yes</td>
+              </tr>
+              <tr>
+                <td>Work while the page is idle</td>
+                <td class="y">none</td>
+                <td class="y">none</td>
+                <td>one check per frame</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <footer>
-        MIT © <a href="https://x.com/gkurttech">Gokhan Kurt</a> · built from CSS anchor positioning, <code>@property</code>, container
-        queries and top-layer popovers
+        <span>MIT © <a href="https://x.com/gkurttech">Gokhan Kurt</a></span>
+        <span><a href="https://github.com/gkurt/geometry-observer">Source on GitHub</a></span>
       </footer>
     </div>
 
@@ -922,30 +1287,40 @@
       const $ = (id) => document.getElementById(id);
       if (!isSupported()) $('unsupported').hidden = false;
 
-      /* ---------- install picker ---------- */
+      /* ---------- install command ---------- */
       {
-        const tabs = [...document.querySelectorAll('.install-tabs button')];
+        const pm = $('pm');
         const out = $('installCmd');
         const copy = $('installCopy');
         let restore;
 
-        for (const tab of tabs) {
-          tab.onclick = () => {
-            for (const other of tabs) other.setAttribute('aria-selected', String(other === tab));
-            out.textContent = tab.dataset.cmd;
-          };
-        }
-
+        pm.onchange = () => {
+          out.textContent = `${pm.value} geometry-observer`;
+        };
         copy.onclick = async () => {
           try {
             await navigator.clipboard.writeText(out.textContent);
             copy.textContent = 'Copied';
           } catch {
-            copy.textContent = 'Press Ctrl C';
+            copy.textContent = 'Failed';
           }
           clearTimeout(restore);
           restore = setTimeout(() => (copy.textContent = 'Copy'), 1400);
         };
+      }
+
+      /* ---------- code tabs ---------- */
+      {
+        const tabs = [...document.querySelectorAll('.code-tabs button')];
+        for (const tab of tabs) {
+          tab.onclick = () => {
+            for (const other of tabs) {
+              const selected = other === tab;
+              other.setAttribute('aria-selected', String(selected));
+              $(other.getAttribute('aria-controls')).hidden = !selected;
+            }
+          };
+        }
       }
 
       /* ---------- the live demo ---------- */
@@ -957,33 +1332,15 @@
         const stage = $('stage');
         const shifted = $('shifted');
         const target = $('target');
+        const initial = target.innerHTML;
         const [lineW, lineH, chipXY] = [$('dimW'), $('dimH'), $('dimXY')];
-        const begun = performance.now();
-        let events = 0;
+        let entries = 0;
         let blocks = 0;
-        let hz = 60;
-
-        (function measureHz() {
-          const stamps = [];
-          let n = 0;
-          const step = (t) => {
-            stamps.push(t);
-            if (++n < 8) requestAnimationFrame(step);
-            else {
-              const d = (stamps.at(-1) - stamps[0]) / (stamps.length - 1);
-              if (d > 1) hz = Math.min(240, Math.round(1000 / d));
-            }
-          };
-          requestAnimationFrame(step);
-        })();
-
-        const tickScoreboard = () => {
-          $('rav').textContent = Math.max(0, Math.round(((performance.now() - begun) / 1000) * hz) - events).toLocaleString();
-        };
+        let lastCallback = performance.now();
 
         const paint = (entry) => {
           $('rs').textContent = entry.state;
-          $('rev').textContent = events.toLocaleString();
+          $('rev').textContent = entries.toLocaleString();
 
           const shown = entry.state === 'rendered';
           for (const el of [lineW, lineH, chipXY]) el.hidden = !shown;
@@ -1005,22 +1362,25 @@
         };
 
         // 'sync' delivers inside the transition event rather than a frame later,
-        // which is what keeps the overlay glued while the box is being dragged.
+        // which keeps the overlay in step while the box is being resized.
         const observer = new GeometryObserver(
-          (entries) => {
-            events += entries.length;
-            paint(entries.at(-1));
-            tickScoreboard();
+          (batch) => {
+            entries += batch.length;
+            lastCallback = performance.now();
+            paint(batch.at(-1));
           },
           { batch: 'sync' },
         );
         observer.observe(target);
-        setInterval(tickScoreboard, 1000);
+
+        setInterval(() => {
+          $('idle').textContent = `${((performance.now() - lastCallback) / 1000).toFixed(1)} s`;
+        }, 100);
 
         $('insert').onclick = () => {
           const el = document.createElement('div');
           el.className = 'blk';
-          el.textContent = `block ${++blocks}, pushing the target down`;
+          el.textContent = `block ${++blocks}`;
           $('blocks').append(el);
         };
         $('remove').onclick = () => {
@@ -1030,16 +1390,14 @@
           }
         };
         $('text').onclick = () => {
-          // Hand the height back to the content, so this really is a resize
-          // nobody asked for rather than the box quietly scrolling.
+          // Let the content decide the height, so the box grows instead of scrolling.
           target.style.height = 'auto';
-          target.insertAdjacentText('beforeend', ' More text, which makes the box taller without anyone setting a size.');
+          target.insertAdjacentText('beforeend', ' More text makes the box taller.');
         };
         $('shift').onclick = () => {
-          // Transform the wrapper, not the stage. The overlay is positioned
-          // against the stage, so transforming that would carry the labels along
-          // with the target and demonstrate nothing.
-          shifted.style.translate = shifted.style.translate ? '' : '34px 14px';
+          // Move the wrapper, not the stage: the overlay is positioned in the stage,
+          // so moving the stage would carry the overlay along too.
+          shifted.style.translate = shifted.style.translate ? '' : '40px 16px';
         };
         $('hide').onclick = () => {
           target.style.display = target.style.display === 'none' ? '' : 'none';
@@ -1049,13 +1407,13 @@
           blocks = 0;
           shifted.style.translate = '';
           target.style.display = '';
-          target.style.width = '230px';
-          target.style.height = '84px';
-          target.innerHTML = '<b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.';
+          target.style.width = '';
+          target.style.height = '';
+          target.innerHTML = initial;
         };
         $('settle').onchange = (e) => {
           observer.reconfigure({ settle: e.target.checked ? 250 : 0 });
-          $('mode').textContent = e.target.checked ? 'settle 250ms' : 'every change';
+          $('mode').textContent = e.target.checked ? 'after 250ms still' : 'every change';
         };
       }
 
@@ -1071,26 +1429,33 @@
           [2, 3],
           [3, 4],
         ];
+        // Positions as fractions of the free space, so the layout fits any width.
         const nodes = [
-          { label: 'source', body: 'rows in', x: 26, y: 30 },
-          { label: 'filter', body: 'drop nulls', x: 210, y: 24 },
-          { label: 'enrich', body: 'join users', x: 206, y: 150 },
-          { label: 'merge', body: 'by key', x: 400, y: 90 },
-          { label: 'sink', body: 'write out', x: 578, y: 170 },
+          { label: 'source', body: 'rows in', fx: 0.02, fy: 0.3 },
+          { label: 'filter', body: 'drop nulls', fx: 0.28, fy: 0.08 },
+          { label: 'enrich', body: 'join users', fx: 0.3, fy: 0.84 },
+          { label: 'merge', body: 'by key', fx: 0.6, fy: 0.42 },
+          { label: 'sink', body: 'write out', fx: 0.96, fy: 0.66 },
         ];
-        let events = 0;
+        let entries = 0;
         let dragging = null;
+        let laidOutFor = null;
         const open = new Set();
 
-        const observer = new GeometryObserver((entries) => {
-          events += entries.length;
-          $('graphEvents').textContent = `${events.toLocaleString()} event${events === 1 ? '' : 's'}`;
+        const observer = new GeometryObserver((batch) => {
+          entries += batch.length;
+          $('graphEvents').textContent = `${entries.toLocaleString()} ${entries === 1 ? 'entry' : 'entries'}`;
 
-          // A node resized by its own corner is the only way width and height
-          // change, and the handle raises no event of its own.
-          for (const entry of entries) {
+          for (const entry of batch) {
+            if (entry.state !== 'rendered') continue;
+            if (entry.target === graph) {
+              fit(entry.rect.width, entry.rect.height);
+              continue;
+            }
+            // Resizing from the corner fires no event of its own, so the observer
+            // is the only source for a node's size.
             const node = nodes.find((n) => n.el === entry.target);
-            if (node && entry.state === 'rendered') {
+            if (node) {
               node.w = entry.rect.width;
               node.h = entry.rect.height;
             }
@@ -1101,17 +1466,26 @@
           positionTips();
         });
 
-        /**
-         * Tooltips are placed from the rects the observer just reported, which is
-         * why they keep up while a node is dragged, pushed, resized or scrolled,
-         * and why they work the same on engines running the sampling fallback.
-         * Pinning several is the interesting case: they all track at once.
-         */
+        /** Lays nodes out for the graph's size, or rescales them when its width changes. */
+        function fit(width, height) {
+          if (width === 0 || height === 0) return;
+          if (laidOutFor === null) {
+            for (const node of nodes) {
+              node.x = node.fx * (width - node.w);
+              node.y = node.fy * (height - node.h);
+            }
+          } else if (width !== laidOutFor) {
+            for (const node of nodes) node.x *= width / laidOutFor;
+          }
+          laidOutFor = width;
+          for (const node of nodes) clamp(node);
+        }
+
         function positionTips() {
           for (const node of open) {
             const r = node.el.getBoundingClientRect();
             const tip = node.tip;
-            tip.textContent = `${node.label}  ${Math.round(r.width)} x ${Math.round(r.height)}`;
+            tip.textContent = `${node.label} ${Math.round(r.width)} × ${Math.round(r.height)}`;
             const below = r.top < 56;
             tip.classList.toggle('below', below);
             tip.classList.toggle('pinned', node.pinned === true);
@@ -1139,9 +1513,13 @@
           const el = document.createElement('div');
           el.className = 'node';
           el.innerHTML = `<b>${node.label}</b>${node.body}`;
-          el.style.cssText = `left:${node.x}px; top:${node.y}px`;
           graph.append(el);
           node.el = el;
+          const box = el.getBoundingClientRect();
+          node.w = box.width;
+          node.h = box.height;
+          node.x = 0;
+          node.y = 0;
 
           const tip = document.createElement('div');
           tip.className = 'tip';
@@ -1153,10 +1531,6 @@
           el.addEventListener('pointerleave', () => {
             if (node.pinned !== true) hideTip(node);
           });
-          const box = el.getBoundingClientRect();
-          node.w = box.width;
-          node.h = box.height;
-          observer.observe(el);
 
           el.addEventListener('pointerdown', (event) => {
             const r = el.getBoundingClientRect();
@@ -1173,10 +1547,8 @@
             event.preventDefault();
           });
 
-          // Dragging writes one node's position and stops there. Pushing the
-          // others apart and redrawing the edges happens in the observer
-          // callback, so the cascade really is driven by reported geometry
-          // rather than by anything this handler already knows.
+          // Only the dragged node is moved here. Pushing the others away and
+          // redrawing the edges happens in the observer callback.
           el.addEventListener('pointermove', (event) => {
             if (dragging !== node) return;
             const g = graph.getBoundingClientRect();
@@ -1197,7 +1569,7 @@
             if (node.fromHandle !== true && travelled < 5) {
               node.pinned = node.pinned !== true;
               el.classList.toggle('pinned', node.pinned);
-              // Unpinning leaves the tooltip up; pointerleave takes it away.
+              // Unpinning leaves the tooltip up until the pointer leaves.
               showTip(node);
             }
             drop();
@@ -1211,9 +1583,17 @@
           node.y = Math.max(0, Math.min(node.y, g.height - node.h));
         }
 
-        /** Shove overlapping nodes apart along their shallower axis, until none overlap. */
+        /**
+         * Pushes overlapping nodes apart. The dragged node pushes the others ahead
+         * of it, and only gives way when they are pinned against the edge.
+         */
         function separate() {
-          for (let pass = 0; pass < 14; pass++) {
+          if (!relax(dragging)) relax(null);
+        }
+
+        /** Resolves overlaps without ever moving `held`. Returns false if some are left. */
+        function relax(held) {
+          for (let pass = 0; pass < 40; pass++) {
             let moved = false;
             for (let i = 0; i < nodes.length; i++) {
               for (let j = i + 1; j < nodes.length; j++) {
@@ -1226,22 +1606,24 @@
                 if (overlapX <= 0 || overlapY <= 0) continue;
 
                 moved = true;
-                // The node under the cursor holds its ground; the other gives way.
-                const share = a === dragging || b === dragging ? 1 : 0.5;
+                // Against the held node the other one moves the whole distance;
+                // otherwise both move half.
+                const share = a === held || b === held ? 1 : 0.5;
                 if (overlapX < overlapY) {
                   const push = Math.sign(dx || 1) * overlapX * share;
-                  if (b !== dragging) a.x += push;
-                  if (a !== dragging) b.x -= push;
+                  if (a !== held) a.x += push;
+                  if (b !== held) b.x -= push;
                 } else {
                   const push = Math.sign(dy || 1) * overlapY * share;
-                  if (b !== dragging) a.y += push;
-                  if (a !== dragging) b.y -= push;
+                  if (a !== held) a.y += push;
+                  if (b !== held) b.y -= push;
                 }
               }
             }
             for (const node of nodes) clamp(node);
-            if (!moved) break;
+            if (!moved) return true;
           }
+          return false;
         }
 
         function place() {
@@ -1251,7 +1633,6 @@
           }
         }
 
-        /** Drawn from live rects, so the edges are only ever as current as the callbacks. */
         function draw() {
           const g = graph.getBoundingClientRect();
           const centre = (node) => {
@@ -1269,15 +1650,15 @@
           svg.innerHTML = out.join('');
         }
 
+        const g = graph.getBoundingClientRect();
+        fit(g.width, g.height);
         separate();
         place();
         draw();
-        addEventListener('resize', () => {
-          for (const node of nodes) clamp(node);
-          separate();
-          place();
-          draw();
-        });
+
+        // The graph itself is observed too, so a change in its width re-fits the nodes.
+        observer.observe(graph);
+        for (const node of nodes) observer.observe(node.el);
       }
     </script>
   </body>

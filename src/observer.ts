@@ -4,30 +4,28 @@ import type { BatchMode, GeometryCallback, GeometryEntry, GeometryObserverInit, 
 
 interface Watch {
   probe: HTMLElement | null;
+  /** Removes the probe's listener. Probes are pooled, so a listener left behind would keep this target and observer alive. */
+  release: AbortController | null;
   /** The target's own inline `anchor-name`, to be put back exactly as found. */
   priorAnchorName: string;
   ownsAnchorName: boolean;
   /**
-   * Whether we have actually written to the target's `anchor-name` yet. Attach is
-   * deferred to a microtask, so an `observe()` followed by a synchronous
-   * `unobserve()` — a fast mount/unmount, say — must leave the target as it found
-   * it rather than removing a name the page set itself.
+   * Attaching waits for a microtask, so `observe()` then `unobserve()` in the same
+   * tick must not remove an `anchor-name` the page set itself.
    */
   wroteAnchorName: boolean;
   last: DOMRectReadOnly | null;
-  /** Geometry as last reported to the callback. What decides whether an entry is news. */
+  /** Geometry as last reported to the callback. */
   key: string;
   /**
-   * Geometry as of the last settle check — a separate baseline on purpose. Debounce
-   * has to ask "did anything move since I last looked", and `key` cannot answer
-   * that: it stays put until a delivery, so every frame after the first change
-   * would still look like a change and restart the timer forever.
+   * Geometry as of the last settle check. `key` can't serve here: it only changes
+   * on delivery, so every frame after the first change would look like a new
+   * change and keep restarting the settle timer.
    */
   seen: string;
 }
 
-/* One set of listeners and one fallback loop for every observer on the page,
- * rather than one per instance. */
+// One set of listeners and one fallback loop, shared by every observer on the page.
 const live = new Set<GeometryObserver>();
 let listening = false;
 let samplerTick = 0;
@@ -49,8 +47,7 @@ function enlist(observer: GeometryObserver): void {
     visualViewport?.addEventListener('resize', onViewportChange, { passive: true });
     visualViewport?.addEventListener('scroll', onViewportChange, { passive: true });
   }
-  // Without anchor positioning there is nothing to listen to, so this is the one
-  // path that samples. One shared loop serves every observer.
+  // Without anchor positioning there are no events to listen to, so sample instead.
   if (!isSupported() && samplerTick === 0) {
     const loop = (): void => {
       samplerTick = requestAnimationFrame(loop);
@@ -74,10 +71,8 @@ function delist(observer: GeometryObserver): void {
 }
 
 /**
- * One rect read, plus the key that decides whether it is news.
- *
- * State belongs in the key: an element already 0×0 that then gets hidden has the
- * same rect and a different meaning.
+ * Reads the target's rect and state. The key includes the state because an
+ * element that is already 0×0 keeps the same rect when it gets hidden.
  */
 function measure(target: Element): { rect: DOMRect; state: GeometryState; key: string } {
   const connected = target.isConnected;
@@ -102,12 +97,12 @@ function inlineStyle(element: Element): CSSStyleDeclaration | undefined {
 let seq = 0;
 
 /**
- * Event-based position and size observation.
+ * Reports when observed elements move or change size.
  *
- * `anchor()` and `anchor-size()` resolve a target's box into computed lengths on
- * a hidden probe element; those lengths are transitionable; and a running
- * transition dispatches an event. So the layout engine reports geometry changes
- * on its own, with no sampling loop and no main-thread work while nothing moves.
+ * Each target gets a hidden probe element that copies its box with `anchor()` and
+ * `anchor-size()`. The probe's position and size have a short transition, so when
+ * layout moves the target the probe fires `transitionstart`, and the observer
+ * reads the target's rect. Nothing runs while nothing moves.
  *
  * ```ts
  * const observer = new GeometryObserver((entries) => {
@@ -158,6 +153,7 @@ export class GeometryObserver {
     // Placeholder, so a second observe() in the same tick is a no-op.
     this.#watches.set(target, {
       probe: null,
+      release: null,
       priorAnchorName: '',
       ownsAnchorName: anchorName === undefined,
       wroteAnchorName: false,
@@ -173,6 +169,7 @@ export class GeometryObserver {
   unobserve(target: Element): void {
     const watch = this.#watches.get(target);
     if (!watch) return;
+    watch.release?.abort();
     if (watch.probe) retireProbe(watch.probe);
     if (watch.ownsAnchorName && watch.wroteAnchorName) {
       const style = inlineStyle(target);
@@ -181,6 +178,8 @@ export class GeometryObserver {
     }
     this.#watches.delete(target);
     this.#dirty.delete(target);
+    // Otherwise observe(), unobserve(), observe() in one tick attaches twice.
+    this.#pendingObserve = this.#pendingObserve.filter((pending) => pending.target !== target);
     if (this.#watches.size === 0) delist(this);
   }
 
@@ -204,12 +203,10 @@ export class GeometryObserver {
   }
 
   /**
-   * Change what counts as a change, without tearing anything down.
+   * Changes options on a live observer.
    *
-   * `track` and `settle` live entirely in one inline `transition` declaration per
-   * probe, so switching them is a style write per observed element: no probe is
-   * rebuilt, no `anchor-name` is touched, no target is re-measured, and targets
-   * queued by `observe()` but not yet attached pick the new values up on their own.
+   * `track` and `settle` only affect each probe's inline `transition`, so this is
+   * one style write per observed element. Nothing is re-attached or re-measured.
    */
   reconfigure(init: GeometryObserverInit): void {
     if (init.batch !== undefined) this.#batch = init.batch;
@@ -221,8 +218,7 @@ export class GeometryObserver {
     const transition = transitionFor(this.#track, this.#settle);
     for (const watch of this.#watches.values()) watch.probe?.style.setProperty('transition', transition, 'important');
 
-    // Dropping the delay while a wake was still waiting it out would otherwise
-    // leave that change stranded in the timer for the old duration.
+    // A change already waiting in the settle timer would otherwise wait out the old delay.
     if (this.#settle === 0 && this.#settleTimer !== undefined) {
       clearTimeout(this.#settleTimer);
       this.#settleTimer = undefined;
@@ -247,16 +243,11 @@ export class GeometryObserver {
   }
 
   /**
-   * Scrolling, viewport resizes and the sampling fallback arrive as plain events
-   * with no transition behind them, so there is no CSS delay to lean on. Honour
-   * `settle` here with an actual timer, otherwise the same observer would debounce
-   * layout changes and fire immediately on scroll.
+   * Scrolls, viewport resizes and the sampling fallback have no transition behind
+   * them, so `settle` needs a real timer on this path.
    *
-   * The timer restarts on a real change, never on a bare wake. The sampler wakes
-   * every frame whether or not anything moved, so restarting per wake would keep
-   * pushing the deadline out of reach and the observer would go silent for good.
-   * Checking is read-only, so the delivery that eventually lands still measures
-   * against the geometry from before the churn started and reports it as one entry.
+   * The timer restarts only when something actually moved. The sampler wakes every
+   * frame, so restarting on every wake would push the deadline back forever.
    */
   #wakeScheduled(): void {
     if (this.#settle === 0) {
@@ -277,9 +268,8 @@ export class GeometryObserver {
   }
 
   /**
-   * Whether anything dirty moved since the last check. Records nothing itself, so
-   * the delivery this eventually allows still measures against the geometry from
-   * before the churn and reports the whole burst as one entry.
+   * Whether any dirty target moved since the last check. Only `seen` is updated,
+   * so the eventual entry still compares against the rect from before the burst.
    */
   #changed(): boolean {
     let moved = false;
@@ -295,9 +285,8 @@ export class GeometryObserver {
   }
 
   /**
-   * Attach every target queued this tick. Reading all the prior anchor names
-   * before writing any keeps this to a single style flush instead of one per
-   * target, which matters when a page observes a few hundred elements at once.
+   * Attaches every target queued this tick. All existing anchor names are read
+   * before any is written, so this costs one style flush rather than one per target.
    */
   #attachPending(): void {
     const pending = this.#pendingObserve.splice(0);
@@ -314,7 +303,7 @@ export class GeometryObserver {
 
     pending.forEach(({ target, anchorName }, index) => {
       const watch = this.#watches.get(target);
-      if (!watch) return; // unobserved before we got here
+      if (!watch) return;
       watch.priorAnchorName = priors[index]?.inline ?? '';
 
       if (isSupported()) {
@@ -322,21 +311,26 @@ export class GeometryObserver {
         if (anchorName === undefined) {
           name = `--geo-probe-${++seq}`;
           const prior = priors[index]?.computed ?? '';
-          // anchor-name is a list — never clobber a name the page already set.
+          // anchor-name takes a list, so keep any name the page already set.
           inlineStyle(target)?.setProperty('anchor-name', prior && prior !== 'none' ? `${prior}, ${name}` : name);
           watch.wroteAnchorName = true;
         } else {
-          name = anchorName; // the page owns it; touch nothing
+          name = anchorName;
         }
 
         const probe = createProbe(name, this.#track, this.#settle);
-        // The CSS delay has already done the waiting by the time this fires, so
-        // deliver straight away rather than waiting again in JS.
-        probe.addEventListener('transitionstart', () => {
-          this.#dirty.add(target);
-          this.#schedule();
-        });
+        const release = new AbortController();
+        // transition-delay has already applied `settle` by the time this fires.
+        probe.addEventListener(
+          'transitionstart',
+          () => {
+            this.#dirty.add(target);
+            this.#schedule();
+          },
+          { signal: release.signal },
+        );
         watch.probe = probe;
+        watch.release = release;
       }
 
       this.#dirty.add(target);
@@ -347,8 +341,8 @@ export class GeometryObserver {
 
   #schedule(): void {
     if (this.#batch === 'sync') {
-      // Layout is already clean inside a transition event, so reading now is free
-      // and lands the callback a frame earlier than rAF would.
+      // Layout is already clean inside a transition event, so reading now is
+      // cheap and delivers a frame earlier than rAF would.
       this.#collect();
       this.#deliver();
       return;
@@ -367,13 +361,10 @@ export class GeometryObserver {
       const watch = this.#watches.get(target);
       if (!watch) continue;
 
-      // Always measure the target, never the probe. The probe exists to raise the
-      // event; its rect is only a mirror, and once its anchor is gone the probe is
-      // parked on its fallback and describes nothing. The target's own
-      // getBoundingClientRect() is the scroll- and transform-adjusted truth in
-      // every state, and honestly reports zeroes in the states below.
+      // Measure the target, not the probe. A probe that lost its anchor sits at
+      // its fallback position and no longer describes anything.
       const { rect, state, key } = measure(target);
-      if (key === watch.key) continue; // woken by a scroll with nothing to say
+      if (key === watch.key) continue;
       const previousRect = watch.last;
       watch.key = key;
       watch.seen = key;
@@ -386,8 +377,7 @@ export class GeometryObserver {
         resized: previousRect === null || previousRect.width !== rect.width || previousRect.height !== rect.height,
         state,
       });
-      // Nothing more can happen to a detached target, so report it once and let go
-      // — otherwise its probe and anchor name leak for the page's lifetime.
+      // Report a detached target once, then release its probe and anchor name.
       if (state === 'detached') this.unobserve(target);
     }
     this.#dirty.clear();

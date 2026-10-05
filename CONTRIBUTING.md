@@ -15,29 +15,30 @@ bunx playwright install chromium webkit
 
 ## Tests
 
-Tests run in real browsers, because the whole mechanism is CSS — there is nothing meaningful to assert in a simulated DOM.
+Tests run in real browsers. The mechanism is CSS, so a simulated DOM can't exercise it.
 
-- `test/observer.test.ts` — behaviour every engine must have, including where the sampling fallback takes over.
-- `test/anchor.test.ts` — things that only exist when anchor positioning is available, skipped elsewhere via `isSupported()`. Anything both paths owe the caller belongs in `observer.test.ts`, so the fallback has to prove it too.
-- `test/capabilities.ts` — measures whether this engine reports teardown, instead of sniffing for it, so the suite lights up on its own if an engine starts supporting it.
-- `test/react.test.tsx` — the `geometry-observer/react` hook, asserting the memoisation it promises: one stable ref, no re-subscribe on a new callback identity, retune rather than rebuild.
+- `test/observer.test.ts` — behaviour every engine must have, including engines on the sampling fallback.
+- `test/anchor.test.ts` — behaviour specific to anchor positioning, skipped where `isSupported()` is false. Anything the caller relies on on both paths belongs in `observer.test.ts` instead.
+- `test/capabilities.ts` — measures whether this engine reports teardown, so those tests start running on an engine once it supports it.
+- `test/react.test.tsx` — the `geometry-observer/react` hook: one stable ref, no re-subscribe when the callback changes, options updated in place.
 
-Firefox runs on CI only — Playwright's Firefox build cannot launch on macOS 27. See the comment in `vitest.config.ts`.
+Firefox runs on CI only, because Playwright's Firefox can't launch on macOS 27. See the comment in `vitest.config.ts`.
 
 ## Changes
 
-Lint, format and `tsc` own all mechanical style. Run `bun run fix`, then `bun run checks`, before opening a PR. Fix the code rather than disabling a rule.
+The linter, formatter and `tsc` handle style. Run `bun run fix`, then `bun run checks`, before opening a PR. Fix the code rather than disabling a rule.
 
-Add a changelog entry for anything user-facing, once there is a release to
+To preview the homepage, build it with `bun run site` and serve `_site/` with any static server.
+
+Add a changelog entry for anything user-facing, once there's a release to
 describe changes against:
 
 ```bash
 bun tegami add
 ```
 
-Nothing before the initial release needs one — the first release notes describe
-the package, not the path it took to get there.
+Changes before the first release don't need one.
 
 ## Claims
 
-This package makes specific performance and coverage claims. If you change behaviour that one of them rests on, measure it and update the number — in the README, in `AGENTS.md`, and in the comment next to the code. A stale claim is a bug.
+The README and homepage make specific performance and coverage claims. If you change behaviour one of them depends on, measure it again and update it everywhere it appears: the README, the homepage, `AGENTS.md` and the comment next to the code.

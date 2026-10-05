@@ -1,17 +1,12 @@
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
-// Chromium is the engine the mechanism was built against. WebKit runs the same
-// suite because Safari 26 ships anchor positioning too — it skips the teardown
-// group on its own, via the capability measured in test/capabilities.ts.
+// WebKit skips the teardown tests by itself, see test/capabilities.ts.
 //
-// Firefox has no anchor positioning yet, so it is the only engine that exercises
-// the sampling fallback end to end — worth running, but CI-only: Playwright's
-// Firefox build cannot launch on macOS 27. It fails to open any profile ("Could
-// not find profile folder"), rooted in a sandbox denial
-// (`sandbox_extension_issue_file_to_process failed for plugin-container.app`)
-// that reproduces outside Playwright and across every cached revision. Nothing in
-// this repo can work around it; CI runs Linux, where the same build is fine.
+// Firefox is the engine that exercises the sampling fallback, but it only runs on
+// CI: Playwright's Firefox can't open a profile on macOS 27 ("Could not find
+// profile folder", from a sandbox denial on plugin-container.app). It works on
+// the Linux CI runners.
 const engines: ('chromium' | 'firefox' | 'webkit')[] = ['chromium', 'webkit'];
 if (process.env.CI) engines.push('firefox');
 

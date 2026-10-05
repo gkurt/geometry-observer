@@ -1,5 +1,5 @@
 import { cleanup, render } from '@testing-library/react';
-import { StrictMode, useRef, useState } from 'react';
+import { StrictMode, useCallback, useRef, useState } from 'react';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSupported } from '#src/index.ts';
 import type { GeometryCallback, GeometryEntry } from '#src/index.ts';
@@ -164,6 +164,35 @@ describe('useGeometryObserver', () => {
 
     expect(p.entries.length).toBeGreaterThanOrEqual(1);
     expect(Math.round(p.entries.at(-1)!.rect.width)).toBe(260);
+  });
+
+  test('does not re-subscribe through a memoised combined ref', async () => {
+    function Combined({ p, width }: { p: Probe; width: number }) {
+      const mine = useRef<HTMLDivElement | null>(null);
+      const geometry = useGeometryObserver((entries) => p.entries.push(...entries));
+      const ref = useCallback(
+        (node: HTMLDivElement | null) => {
+          mine.current = node;
+          return geometry(node);
+        },
+        [geometry],
+      );
+      return <div data-testid="combined" ref={ref} style={{ width, height: 20 }} />;
+    }
+
+    const p = probe();
+    const { getByTestId, rerender } = render(<Combined p={p} width={60} />);
+    await quiet();
+    p.entries.length = 0;
+
+    rerender(<Combined p={p} width={120} />);
+    await quiet();
+
+    // A re-subscribe would report a first entry, with no previousRect.
+    expect(p.entries).toHaveLength(1);
+    expect(p.entries[0]!.previousRect).not.toBeNull();
+    expect(Math.round(p.entries[0]!.rect.width)).toBe(120);
+    expect(p.entries[0]!.target).toBe(getByTestId('combined'));
   });
 
   test('leaves the element clean when it never had an anchor-name', async () => {

@@ -3,9 +3,8 @@ import { GeometryObserver, isSupported, PROBE_GROUP_ATTRIBUTE } from '#src/index
 import { mount, quiet, recorder } from './helpers.ts';
 
 /**
- * Behaviour that only exists when the anchor-positioning mechanism is available.
- * Elsewhere the observer falls back to sampling, which has none of these
- * properties — and is covered by observer.test.ts instead.
+ * Behaviour specific to the anchor-positioning mechanism. Engines on the sampling
+ * fallback skip these; observer.test.ts covers both paths.
  */
 const anchors = describe.skipIf(!isSupported());
 
@@ -51,6 +50,19 @@ anchors('probes', () => {
   test('releases probes on unobserve', async () => {
     const before = probeCount();
     observer = new GeometryObserver(recorder().callback);
+    observer.observe(box());
+    await quiet();
+    expect(probeCount()).toBe(before + 1);
+
+    observer.unobserve(box());
+    expect(probeCount()).toBe(before);
+  });
+
+  test('attaches one probe when a target is observed, unobserved and observed again in one tick', async () => {
+    const before = probeCount();
+    observer = new GeometryObserver(recorder().callback);
+    observer.observe(box());
+    observer.unobserve(box());
     observer.observe(box());
     await quiet();
     expect(probeCount()).toBe(before + 1);
