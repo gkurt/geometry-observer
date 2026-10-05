@@ -156,7 +156,7 @@ The probes live in a single `<div data-geometry-probes>` appended to `<body>`. T
 
 ## Caveats
 
-- **The cost is per reflow, not per frame.** Each probe is a box the browser lays out, so it adds a little to every reflow on the page, including reflows that don't move its target. A rAF loop costs the same every frame instead. The two break even at about five reflows per second in Chromium, and several times that in Safari. geometry-observer wins on idle pages and on what it catches; under constant layout churn, one shared rAF loop is cheaper.
+- **The cost is per reflow, not per frame.** Each probe is a box the browser lays out, so it adds a little to every reflow on the page, including reflows that don't move its target. A rAF loop costs the same every frame instead. The two break even at about five reflows per second in Chromium, and several times that in Safari. geometry-observer wins on idle pages and on what it catches; under constant layout churn, one shared rAF loop is cheaper. [bench/](bench/) compares it with a rAF loop, Floating UI's `autoUpdate` and `ResizeObserver` across scenarios.
 - **In Safari, CSS-only hiding goes unreported.** A target hidden by a pseudo-class or a stylesheet change, with no DOM mutation behind it, keeps its last `rendered` entry. Removal is always reported.
 - **Composited transform animations lag by about half a frame.** The rect is exact once the animation stops, but a few pixels behind while it runs.
 - **CSS resets can't turn it off.** The probe's styles are inline and `!important`, so a reset like `* { transition: none !important }` doesn't affect it.

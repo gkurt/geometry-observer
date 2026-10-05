@@ -13,6 +13,7 @@ bun run fix        # Lint + format + autofix
 bun run build      # Build dist with tsdown
 bun run checks     # Everything: check + typecheck + test + build
 bun run smoke      # Pack, install the tarball, use it as a consumer would
+bun run bench      # Compare with other approaches in real engines (slow; --quick)
 ```
 
 Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when
@@ -24,8 +25,8 @@ mechanical style rules. Fix the code; don't disable rules.
 
 - `src/types.ts` — the public type surface. No logic.
 - `src/support.ts` — `isSupported()`, memoised.
-- `src/probe.ts` — the hidden probe element: its style, the shared
-  `display: contents` wrapper, and the pool. The comments explain why each
+- `src/probe.ts` — the hidden probe element: its style, the shared top-layer
+  group, and the pool. The comments explain why each
   declaration is there; several matter in ways that aren't obvious.
 - `src/observer.ts` — the class, plus the page-wide listener registry and the
   sampling fallback. One set of listeners serves every observer instance.
@@ -36,6 +37,9 @@ mechanical style rules. Fix the code; don't disable rules.
 - `scripts/smoke.mts` — packs the tarball, installs it into a throwaway project
   and uses it. The suite imports `#src/*`, so this is the only check on `files`,
   the `exports` map and `dist`.
+- `bench/` — benchmarks against a rAF loop, Floating UI's `autoUpdate` and a
+  `ResizeObserver`. `bench/README.md` explains the method; `bench/results.md` is
+  the latest full run, so regenerate it when behaviour it measures changes.
 - `site/index.html` — the homepage. It imports the built `dist`, so preview it
   with `bun run site` and a static server on `_site/`.
 
