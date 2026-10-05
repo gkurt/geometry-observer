@@ -52,64 +52,66 @@ From the latest full run, [results.md](results.md), on Chromium 153.0.8010.12 an
 
 ### Main-thread cost (Chromium)
 
-Milliseconds added per frame. **stale** counts targets whose last report was still wrong once the page settled.
+Milliseconds added per frame. Each row is ranked: 🟢 cheapest, 🟡 in between, 🔴 most expensive, with costs within 0.1ms tied. `resize-observer` only sees size changes, so it isn't ranked. ❌ **stale** counts targets whose last report was still wrong once the page settled: changes the approach missed.
 
-| scenario               | targets | geometry-observer | raf-loop | floating-ui |   resize-observer |
-| ---------------------- | ------: | ----------------: | -------: | ----------: | ----------------: |
-| idle                   |      10 |              0.00 |     0.17 |        0.00 |              0.00 |
-| idle                   |     100 |              0.00 |     0.27 |        0.00 |              0.00 |
-| idle                   |    1000 |              0.00 |     1.04 |        0.21 |              0.00 |
-| unrelated reflow       |      10 |              0.15 |     0.12 |        0.12 |              0.00 |
-| unrelated reflow       |     100 |              0.73 |     0.11 |        0.25 |              0.07 |
-| unrelated reflow       |    1000 |              6.30 |     0.63 |        0.65 |              0.00 |
-| all targets move       |      10 |              0.28 |     0.04 |        0.13 |   0.00 (10 stale) |
-| all targets move       |     100 |              1.16 |     0.13 |        0.66 |  0.00 (100 stale) |
-| all targets move       |    1000 |              8.98 |     1.05 |        4.48 | 0.19 (1000 stale) |
-| one resize / 10 frames |      10 |              0.02 |     0.00 |        0.02 |              0.00 |
-| one resize / 10 frames |     100 |              0.27 |     0.08 |        0.21 |              0.05 |
-| one resize / 10 frames |    1000 |              2.13 |     0.73 |        0.59 |              0.03 |
-| scroll                 |      10 |              0.08 |     0.01 |        0.13 |   0.04 (10 stale) |
-| scroll                 |     100 |              0.41 |     0.09 |        0.65 |  0.00 (100 stale) |
-| scroll                 |    1000 |              4.48 |     0.66 |        5.40 | 0.10 (1000 stale) |
-| ancestor transform     |      10 |              0.13 |     0.00 |        0.00 |   0.00 (10 stale) |
-| ancestor transform     |     100 |              1.11 |     0.09 |        0.82 |  0.00 (100 stale) |
-| ancestor transform     |    1000 |              9.35 |     0.70 |        4.27 | 0.00 (1000 stale) |
+| scenario               | targets | geometry-observer | raf-loop | floating-ui |      resize-observer |
+| ---------------------- | ------: | ----------------: | -------: | ----------: | -------------------: |
+| idle                   |      10 |           🟢 0.00 |  🔴 0.17 |     🟢 0.00 |                 0.00 |
+| idle                   |     100 |           🟢 0.00 |  🔴 0.27 |     🟢 0.00 |                 0.00 |
+| idle                   |    1000 |           🟢 0.00 |  🔴 1.04 |     🟡 0.21 |                 0.00 |
+| unrelated reflow       |      10 |           🟢 0.15 |  🟢 0.12 |     🟢 0.12 |                 0.00 |
+| unrelated reflow       |     100 |           🔴 0.73 |  🟢 0.11 |     🟡 0.25 |                 0.07 |
+| unrelated reflow       |    1000 |           🔴 6.30 |  🟢 0.63 |     🟢 0.65 |                 0.00 |
+| all targets move       |      10 |           🔴 0.28 |  🟢 0.04 |     🟢 0.13 |   ❌ 0.00 (10 stale) |
+| all targets move       |     100 |           🔴 1.16 |  🟢 0.13 |     🟡 0.66 |  ❌ 0.00 (100 stale) |
+| all targets move       |    1000 |           🔴 8.98 |  🟢 1.05 |     🟡 4.48 | ❌ 0.19 (1000 stale) |
+| one resize / 10 frames |      10 |           🟢 0.02 |  🟢 0.00 |     🟢 0.02 |                 0.00 |
+| one resize / 10 frames |     100 |           🔴 0.27 |  🟢 0.08 |     🔴 0.21 |                 0.05 |
+| one resize / 10 frames |    1000 |           🔴 2.13 |  🟡 0.73 |     🟢 0.59 |                 0.03 |
+| scroll                 |      10 |           🟢 0.08 |  🟢 0.01 |     🔴 0.13 |   ❌ 0.04 (10 stale) |
+| scroll                 |     100 |           🟡 0.41 |  🟢 0.09 |     🔴 0.65 |  ❌ 0.00 (100 stale) |
+| scroll                 |    1000 |           🟡 4.48 |  🟢 0.66 |     🔴 5.40 | ❌ 0.10 (1000 stale) |
+| ancestor transform     |      10 |           🔴 0.13 |  🟢 0.00 |     🟢 0.00 |   ❌ 0.00 (10 stale) |
+| ancestor transform     |     100 |           🔴 1.11 |  🟢 0.09 |     🟡 0.82 |  ❌ 0.00 (100 stale) |
+| ancestor transform     |    1000 |           🔴 9.35 |  🟢 0.70 |     🟡 4.27 | ❌ 0.00 (1000 stale) |
 
 ### Coverage (Chromium)
 
-| change                                   | geometry-observer | raf-loop | floating-ui | resize-observer |
-| ---------------------------------------- | :---------------: | :------: | :---------: | :-------------: |
-| sibling above grows                      |     yes, 0ms      | yes, 3ms |  yes, 0ms   |       no        |
-| sibling inserted before it               |     yes, 1ms      | yes, 2ms |  yes, 1ms   |       no        |
-| own size (style)                         |     yes, 1ms      | yes, 3ms |  yes, 0ms   |    yes, 0ms     |
-| own size (content)                       |     yes, 5ms      | yes, 2ms |  yes, 5ms   |    yes, 3ms     |
-| ancestor transform                       |     yes, 0ms      | yes, 3ms |  yes, 1ms   |       no        |
-| ancestor transform animation             |     yes, 0ms      | yes, 0ms |  yes, 0ms   |       no        |
-| nested scroll                            |     yes, 0ms      | yes, 2ms |  yes, 0ms   |       no        |
-| page scroll                              |     yes, 0ms      | yes, 0ms |  yes, 0ms   |       no        |
-| moves while off-screen                   |     yes, 1ms      | yes, 5ms |  yes, 1ms   |       no        |
-| moves while scrolled out of its scroller |     yes, 1ms      | yes, 3ms |     no      |       no        |
-| moves while partly clipped               |     yes, 1ms      | yes, 2ms |  yes, 1ms   |       no        |
-| display: none                            |     yes, 1ms      | yes, 2ms |  yes, 0ms   |    yes, 0ms     |
-| removed                                  |     yes, 1ms      | yes, 2ms |  yes, 0ms   |    yes, 0ms     |
+🟢 reported within a frame, 🟡 later, 🔴 missed.
+
+| change                                   | geometry-observer |  raf-loop   | floating-ui | resize-observer |
+| ---------------------------------------- | :---------------: | :---------: | :---------: | :-------------: |
+| sibling above grows                      |    🟢 yes, 0ms    | 🟢 yes, 3ms | 🟢 yes, 0ms |      🔴 no      |
+| sibling inserted before it               |    🟢 yes, 1ms    | 🟢 yes, 2ms | 🟢 yes, 1ms |      🔴 no      |
+| own size (style)                         |    🟢 yes, 1ms    | 🟢 yes, 3ms | 🟢 yes, 0ms |   🟢 yes, 0ms   |
+| own size (content)                       |    🟢 yes, 5ms    | 🟢 yes, 2ms | 🟢 yes, 5ms |   🟢 yes, 3ms   |
+| ancestor transform                       |    🟢 yes, 0ms    | 🟢 yes, 3ms | 🟢 yes, 1ms |      🔴 no      |
+| ancestor transform animation             |    🟢 yes, 0ms    | 🟢 yes, 0ms | 🟢 yes, 0ms |      🔴 no      |
+| nested scroll                            |    🟢 yes, 0ms    | 🟢 yes, 2ms | 🟢 yes, 0ms |      🔴 no      |
+| page scroll                              |    🟢 yes, 0ms    | 🟢 yes, 0ms | 🟢 yes, 0ms |      🔴 no      |
+| moves while off-screen                   |    🟢 yes, 1ms    | 🟢 yes, 5ms | 🟢 yes, 1ms |      🔴 no      |
+| moves while scrolled out of its scroller |    🟢 yes, 1ms    | 🟢 yes, 3ms |    🔴 no    |      🔴 no      |
+| moves while partly clipped               |    🟢 yes, 1ms    | 🟢 yes, 2ms | 🟢 yes, 1ms |      🔴 no      |
+| display: none                            |    🟢 yes, 1ms    | 🟢 yes, 2ms | 🟢 yes, 0ms |   🟢 yes, 0ms   |
+| removed                                  |    🟢 yes, 1ms    | 🟢 yes, 2ms | 🟢 yes, 0ms |   🟢 yes, 0ms   |
 
 ### Coverage (WebKit)
 
-| change                                   | geometry-observer | raf-loop  | floating-ui | resize-observer |
-| ---------------------------------------- | :---------------: | :-------: | :---------: | :-------------: |
-| sibling above grows                      |     yes, 0ms      | yes, 3ms  |  yes, 1ms   |       no        |
-| sibling inserted before it               |     yes, 1ms      | yes, 3ms  |  yes, 0ms   |       no        |
-| own size (style)                         |     yes, 1ms      | yes, 3ms  |  yes, 1ms   |    yes, 1ms     |
-| own size (content)                       |     yes, 1ms      | yes, 1ms  |  yes, 2ms   |    yes, 1ms     |
-| ancestor transform                       |     yes, 1ms      | yes, 3ms  |  yes, 1ms   |       no        |
-| ancestor transform animation             |     yes, 1ms      | yes, 0ms  |  yes, 0ms   |       no        |
-| nested scroll                            |     yes, 1ms      | yes, 3ms  |  yes, 0ms   |       no        |
-| page scroll                              |     yes, 1ms      | yes, 10ms |  yes, 0ms   |       no        |
-| moves while off-screen                   |     yes, 1ms      | yes, 14ms |  yes, 1ms   |       no        |
-| moves while scrolled out of its scroller |     yes, 0ms      | yes, 11ms |     no      |       no        |
-| moves while partly clipped               |     yes, 1ms      | yes, 11ms |  yes, 1ms   |       no        |
-| display: none                            |     yes, 1ms      | yes, 1ms  |  yes, 1ms   |    yes, 0ms     |
-| removed                                  |     yes, 1ms      | yes, 14ms |  yes, 0ms   |    yes, 0ms     |
+| change                                   | geometry-observer |   raf-loop   | floating-ui | resize-observer |
+| ---------------------------------------- | :---------------: | :----------: | :---------: | :-------------: |
+| sibling above grows                      |    🟢 yes, 0ms    | 🟢 yes, 3ms  | 🟢 yes, 1ms |      🔴 no      |
+| sibling inserted before it               |    🟢 yes, 1ms    | 🟢 yes, 3ms  | 🟢 yes, 0ms |      🔴 no      |
+| own size (style)                         |    🟢 yes, 1ms    | 🟢 yes, 3ms  | 🟢 yes, 1ms |   🟢 yes, 1ms   |
+| own size (content)                       |    🟢 yes, 1ms    | 🟢 yes, 1ms  | 🟢 yes, 2ms |   🟢 yes, 1ms   |
+| ancestor transform                       |    🟢 yes, 1ms    | 🟢 yes, 3ms  | 🟢 yes, 1ms |      🔴 no      |
+| ancestor transform animation             |    🟢 yes, 1ms    | 🟢 yes, 0ms  | 🟢 yes, 0ms |      🔴 no      |
+| nested scroll                            |    🟢 yes, 1ms    | 🟢 yes, 3ms  | 🟢 yes, 0ms |      🔴 no      |
+| page scroll                              |    🟢 yes, 1ms    | 🟢 yes, 10ms | 🟢 yes, 0ms |      🔴 no      |
+| moves while off-screen                   |    🟢 yes, 1ms    | 🟢 yes, 14ms | 🟢 yes, 1ms |      🔴 no      |
+| moves while scrolled out of its scroller |    🟢 yes, 0ms    | 🟢 yes, 11ms |    🔴 no    |      🔴 no      |
+| moves while partly clipped               |    🟢 yes, 1ms    | 🟢 yes, 11ms | 🟢 yes, 1ms |      🔴 no      |
+| display: none                            |    🟢 yes, 1ms    | 🟢 yes, 1ms  | 🟢 yes, 1ms |   🟢 yes, 0ms   |
+| removed                                  |    🟢 yes, 1ms    | 🟢 yes, 14ms | 🟢 yes, 0ms |   🟢 yes, 0ms   |
 
 ### Before: probes with transitions
 
@@ -117,11 +119,11 @@ The first design copied the target's box onto the probe with `anchor()` and `anc
 
 | scenario           | transitions | `ResizeObserver` |
 | ------------------ | ----------: | ---------------: |
-| idle               |        0.00 |             0.00 |
-| unrelated reflow   |        7.72 |             6.30 |
-| all targets move   |       27.87 |             8.98 |
-| ancestor transform |       24.36 |             9.35 |
-| scroll             |        3.96 |             4.48 |
+| idle               |     🟢 0.00 |          🟢 0.00 |
+| unrelated reflow   |     🔴 7.72 |          🟢 6.30 |
+| all targets move   |    🔴 27.87 |          🟢 8.98 |
+| ancestor transform |    🔴 24.36 |          🟢 9.35 |
+| scroll             |     🟢 3.96 |          🔴 4.48 |
 
 The transition design also reported a frame late in Chromium (16–19ms), and Firefox never started transitions from anchor changes, so it fell back to checking every frame there.
 

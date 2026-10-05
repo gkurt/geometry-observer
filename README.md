@@ -90,14 +90,14 @@ Measured in Chromium and WebKit by [bench/](bench/); Firefox differences are und
 
 ## Performance
 
-Main-thread time each approach adds per frame in Chromium 153, for 100 and 1,000 observed elements. From [bench/results.md](bench/results.md), which has more scenarios. Values under 1ms vary by up to 2× between runs; the ordering doesn't.
+Main-thread time each approach adds per frame in Chromium 153, for 100 and 1,000 observed elements. From [bench/results.md](bench/results.md), which has more scenarios. Values under 1ms vary by up to 2× between runs; the ordering doesn't. In each column, 🟢 is the cheapest, 🟡 in between, 🔴 the most expensive, with costs within 0.1ms tied.
 
-| Scenario                        | geometry-observer | rAF loop  | Floating UI `autoUpdate` |
-| ------------------------------- | ----------------- | --------- | ------------------------ |
-| Nothing changes                 | 0 / 0             | 0.3 / 1.0 | 0 / 0.2                  |
-| A reflow that moves nothing     | 0.7 / 6.3         | 0.1 / 0.6 | 0.3 / 0.7                |
-| Every element moves every frame | 1.2 / 9.0         | 0.1 / 1.1 | 0.7 / 4.5                |
-| Scrolling                       | 0.4 / 4.5         | 0.1 / 0.7 | 0.7 / 5.4                |
+| Scenario                        | geometry-observer | rAF loop        | Floating UI `autoUpdate` |
+| ------------------------------- | ----------------- | --------------- | ------------------------ |
+| Nothing changes                 | 🟢 0 / 🟢 0       | 🔴 0.3 / 🔴 1.0 | 🟢 0 / 🟡 0.2            |
+| A reflow that moves nothing     | 🔴 0.7 / 🔴 6.3   | 🟢 0.1 / 🟢 0.6 | 🟡 0.3 / 🟢 0.7          |
+| Every element moves every frame | 🔴 1.2 / 🔴 9.0   | 🟢 0.1 / 🟢 1.1 | 🟡 0.7 / 🟡 4.5          |
+| Scrolling                       | 🟡 0.4 / 🟡 4.5   | 🟢 0.1 / 🟢 0.7 | 🔴 0.7 / 🔴 5.4          |
 
 It is cheapest only when nothing changes, and beats Floating UI (though not a rAF loop) while scrolling. Each probe is an anchor-positioned box, and Chromium lays out every one of them on every reflow, whether or not its target moved. That cost doesn't depend on the probe's styles or containment. Under constant motion it costs about twice Floating UI, and several times a rAF loop.
 

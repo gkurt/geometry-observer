@@ -39,6 +39,7 @@
         --accent: #0b6e63;
         --accent-soft: #d2e7e3;
         --warn: #a8492a;
+        --caution: #8a6410;
         --code-bg: #10201e;
         --code-ink: #d9e6e3;
         --code-dim: #7d918d;
@@ -64,6 +65,7 @@
           --accent: #44c7b3;
           --accent-soft: #0e302c;
           --warn: #e08a61;
+          --caution: #d8b052;
           --code-bg: #0e1615;
         }
       }
@@ -895,6 +897,16 @@
         color: var(--warn);
         font-weight: 600;
       }
+      .fast {
+        color: var(--accent);
+      }
+      .mid {
+        color: var(--caution);
+      }
+      .slow {
+        color: var(--warn);
+        font-weight: 600;
+      }
       .after-table {
         margin-top: 16px;
         color: var(--ink-2);
@@ -1239,27 +1251,27 @@ observer.<span class="f">observe</span>(button);</pre>
             <tbody>
               <tr>
                 <td>Nothing changes</td>
-                <td class="us">0 / 0</td>
-                <td>0.3 / 1.0</td>
-                <td>0 / 0.2</td>
+                <td class="us"><span class="fast">0</span> / <span class="fast">0</span></td>
+                <td><span class="slow">0.3</span> / <span class="slow">1.0</span></td>
+                <td><span class="fast">0</span> / <span class="mid">0.2</span></td>
               </tr>
               <tr>
                 <td>A reflow that moves nothing</td>
-                <td class="us">0.7 / 6.3</td>
-                <td>0.1 / 0.6</td>
-                <td>0.3 / 0.7</td>
+                <td class="us"><span class="slow">0.7</span> / <span class="slow">6.3</span></td>
+                <td><span class="fast">0.1</span> / <span class="fast">0.6</span></td>
+                <td><span class="mid">0.3</span> / <span class="fast">0.7</span></td>
               </tr>
               <tr>
                 <td>Every element moves every frame</td>
-                <td class="us">1.2 / 9.0</td>
-                <td>0.1 / 1.1</td>
-                <td>0.7 / 4.5</td>
+                <td class="us"><span class="slow">1.2</span> / <span class="slow">9.0</span></td>
+                <td><span class="fast">0.1</span> / <span class="fast">1.1</span></td>
+                <td><span class="mid">0.7</span> / <span class="mid">4.5</span></td>
               </tr>
               <tr>
                 <td>Scrolling</td>
-                <td class="us">0.4 / 4.5</td>
-                <td>0.1 / 0.7</td>
-                <td>0.7 / 5.4</td>
+                <td class="us"><span class="mid">0.4</span> / <span class="mid">4.5</span></td>
+                <td><span class="fast">0.1</span> / <span class="fast">0.7</span></td>
+                <td><span class="slow">0.7</span> / <span class="slow">5.4</span></td>
               </tr>
             </tbody>
           </table>
@@ -1267,7 +1279,8 @@ observer.<span class="f">observe</span>(button);</pre>
         <p class="after-table">
           Chromium 153, from the
           <a href="https://github.com/gkurt/geometry-observer/blob/main/bench/results.md">benchmarks</a>. It's cheapest only when nothing
-          changes, and beats Floating UI while scrolling.
+          changes, and beats Floating UI while scrolling. In each column: <span class="fast">cheapest</span>,
+          <span class="mid">in between</span>, <span class="slow">most expensive</span>, with costs within 0.1ms tied.
         </p>
       </section>
 

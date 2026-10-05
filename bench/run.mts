@@ -56,6 +56,28 @@ async function taskClock(page: Page): Promise<() => Promise<number>> {
 
 const median = (values: number[]): number => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
+/** Below run-to-run noise, so costs this close count as a tie. */
+const TIE_MS = 0.1;
+
+/** Ranks a row: 🟢 cheapest, 🔴 most expensive, 🟡 in between. `null` (not ranked) gets no mark. */
+function rankMarks(costs: (number | null)[]): string[] {
+  const ranked = costs.filter((ms) => ms !== null);
+  const best = Math.min(...ranked);
+  const worst = Math.max(...ranked);
+  return costs.map((ms) => {
+    if (ms === null) return '';
+    if (ms - best < TIE_MS) return '🟢';
+    if (worst - ms < TIE_MS) return '🔴';
+    return '🟡';
+  });
+}
+
+/** A size-only reference, shown for comparison but not ranked. */
+const UNRANKED = new Set(['resize-observer']);
+
+/** Within a 60Hz frame of the change, later, or never. */
+const latencyMark = (ms: number): string => (ms <= 1000 / 60 ? '🟢' : '🟡');
+
 const lines: string[] = [];
 const out = (line = ''): void => {
   console.log(line);
@@ -79,7 +101,9 @@ async function costTable(browser: Browser): Promise<void> {
   out('### Main-thread cost\n');
   out(
     `Milliseconds of main-thread work each approach adds per frame over an untracked page, from Chromium's task accounting ` +
-      `(median of ${repeats} runs of ${frames} frames). **stale** counts targets whose last report was still wrong after the page settled.\n`,
+      `(median of ${repeats} runs of ${frames} frames). Each row is ranked: 🟢 cheapest, 🟡 in between, 🔴 most expensive, ` +
+      `with costs within ${TIE_MS}ms tied. resize-observer only sees size changes, so it isn't ranked. ❌ **stale** counts ` +
+      'targets whose last report was still wrong after the page settled: changes the approach missed.\n',
   );
   out(`| scenario | targets | ${APPROACHES.join(' | ')} |`);
   out(`| --- | --: | ${APPROACHES.map(() => '--:').join(' | ')} |`);
@@ -95,11 +119,14 @@ async function costTable(browser: Browser): Promise<void> {
         });
       }
       const base = results.get('none')!.busy;
-      const cells = APPROACHES.map((approach) => {
+      const rows = APPROACHES.map((approach) => {
         const { busy, stale } = results.get(approach)!;
-        const added = Math.max(0, busy - base).toFixed(2);
-        return stale > 0 ? `${added} (${stale} stale)` : added;
+        return { approach, added: Math.max(0, busy - base), stale };
       });
+      const marks = rankMarks(rows.map(({ approach, added, stale }) => (stale > 0 || UNRANKED.has(approach) ? null : added)));
+      const cells = rows.map(({ added, stale }, index) =>
+        stale > 0 ? `❌ ${added.toFixed(2)} (${stale} stale)` : `${marks[index]} ${added.toFixed(2)}`.trim(),
+      );
       out(`| ${scenario} | ${count} | ${cells.join(' | ')} |`);
     }
   }
@@ -110,7 +137,7 @@ async function coverageTable(browser: Browser): Promise<void> {
   out('### Coverage\n');
   out(
     'Whether the last report matches the real rect once the page settles, and the median time from the change to the first ' +
-      `correct report (${repeats} runs).\n`,
+      `correct report (${repeats} runs). 🟢 within a frame, 🟡 later, 🔴 missed.\n`,
   );
   out(`| change | ${APPROACHES.join(' | ')} |`);
   out(`| --- | ${APPROACHES.map(() => ':-:').join(' | ')} |`);
@@ -127,7 +154,8 @@ async function coverageTable(browser: Browser): Promise<void> {
         await page.close();
       }
       const caught = runs.every((result) => result.caught);
-      cells.push(caught ? `yes, ${Math.round(median(runs.map((result) => result.latency ?? 0)))}ms` : 'no');
+      const latency = median(runs.map((result) => result.latency ?? 0));
+      cells.push(caught ? `${latencyMark(latency)} yes, ${Math.round(latency)}ms` : '🔴 no');
     }
     out(`| ${change} | ${cells.join(' | ')} |`);
   }
