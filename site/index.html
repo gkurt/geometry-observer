@@ -6,12 +6,12 @@
     <title>geometry-observer</title>
     <meta
       name="description"
-      content="An observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and runs nothing while the page is idle."
+      content="An experiment: an observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and does no work while the page is idle."
     />
     <meta property="og:title" content="geometry-observer" />
     <meta
       property="og:description"
-      content="An observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and runs nothing while the page is idle."
+      content="An experiment: an observer for element position and size, built on CSS anchor positioning. Fires when an element moves for any reason, and does no work while the page is idle."
     />
     <link
       rel="icon"
@@ -973,8 +973,9 @@
         <div>
           <h1>Know when an element <em>moves</em>.</h1>
           <p class="lead">
-            geometry-observer reports changes to an element's position and size, including the ones caused by other elements, like a sibling
-            growing above it. It's built on CSS anchor positioning, so nothing polls, and no JavaScript runs while the page is idle.
+            An experiment in reporting changes to an element's position and size, including the ones caused by other elements, like a
+            sibling growing above it. It's built on CSS anchor positioning, so nothing polls and no work happens while the page is idle.
+            Once things move, it costs more than the alternatives: see <a href="#limits">Limits</a>.
           </p>
           <div class="actions">
             <div class="install">
@@ -1156,8 +1157,8 @@ observer.<span class="f">observe</span>(button);</pre>
                 <th>Change</th>
                 <th class="us">geometry-observer</th>
                 <th>ResizeObserver</th>
-                <th>IntersectionObserver</th>
-                <th>rAF polling</th>
+                <th>Floating UI <code>autoUpdate</code></th>
+                <th>rAF loop</th>
               </tr>
             </thead>
             <tbody>
@@ -1165,28 +1166,28 @@ observer.<span class="f">observe</span>(button);</pre>
                 <td>Element resized</td>
                 <td class="us y">yes</td>
                 <td class="y">yes</td>
-                <td class="n">—</td>
+                <td class="y">yes</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
                 <td>A sibling above it grew</td>
                 <td class="us y">yes</td>
                 <td class="n">—</td>
-                <td>if rebuilt each time</td>
+                <td class="y">yes</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
                 <td>A node was inserted above it</td>
                 <td class="us y">yes</td>
                 <td class="n">—</td>
-                <td>if rebuilt each time</td>
+                <td class="y">yes</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
                 <td>An ancestor <code>transform</code> changed</td>
                 <td class="us y">yes</td>
                 <td class="n">—</td>
-                <td class="n">—</td>
+                <td class="y">yes</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
@@ -1197,46 +1198,98 @@ observer.<span class="f">observe</span>(button);</pre>
                 <td class="y">yes</td>
               </tr>
               <tr>
+                <td>Moved while scrolled out of its scroller</td>
+                <td class="us y">yes</td>
+                <td class="n">—</td>
+                <td class="n">—</td>
+                <td class="y">yes</td>
+              </tr>
+              <tr>
                 <td>Hidden with <code>display: none</code></td>
                 <td class="us y"><code>state: 'hidden'</code></td>
                 <td>0×0</td>
-                <td class="n">—</td>
+                <td>0×0</td>
                 <td>0×0</td>
               </tr>
               <tr>
                 <td>Removed from the document</td>
                 <td class="us y"><code>state: 'detached'</code></td>
                 <td>0×0</td>
-                <td class="n">—</td>
                 <td>0×0</td>
-              </tr>
-              <tr>
-                <td>Work while the page is idle</td>
-                <td class="us y">none</td>
-                <td class="y">none</td>
-                <td class="y">none</td>
-                <td class="bad">every frame</td>
+                <td>0×0</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p class="after-table">
-          Most position changes come from something else in the layout: a sibling growing, content loading above, an ancestor's padding.
-          <code>ResizeObserver</code> misses all of them.
+          Measured in Chromium and WebKit. Floating UI combines a <code>ResizeObserver</code>, scroll listeners and an
+          <code>IntersectionObserver</code> rebuilt after every move.
+        </p>
+
+        <h3 class="sub">Main-thread cost</h3>
+        <div class="tbl">
+          <table>
+            <thead>
+              <tr>
+                <th>Milliseconds added per frame, 100 / 1,000 elements</th>
+                <th class="us">geometry-observer</th>
+                <th>rAF loop</th>
+                <th>Floating UI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Nothing changes</td>
+                <td class="us">0 / 0</td>
+                <td>0.2 / 0.9</td>
+                <td>0 / 0.2</td>
+              </tr>
+              <tr>
+                <td>A reflow that moves nothing</td>
+                <td class="us">0.9 / 7.7</td>
+                <td>0.1 / 0.6</td>
+                <td>0.1 / 0.8</td>
+              </tr>
+              <tr>
+                <td>Every element moves every frame</td>
+                <td class="us">3.4 / 28</td>
+                <td>0.1 / 0.7</td>
+                <td>0.7 / 4.2</td>
+              </tr>
+              <tr>
+                <td>Scrolling</td>
+                <td class="us">0.6 / 4.0</td>
+                <td>0.1 / 0.7</td>
+                <td>1.0 / 5.6</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="after-table">
+          Chromium 153, from the
+          <a href="https://github.com/gkurt/geometry-observer/blob/main/bench/results.md">benchmarks</a>. It's cheapest only when nothing
+          changes, and beats Floating UI while scrolling.
         </p>
       </section>
 
-      <section>
+      <section id="limits">
         <div class="head">
           <h2>Limits</h2>
         </div>
         <div class="limits">
           <div class="limit">
-            <h3>The cost is per reflow, not per frame</h3>
+            <h3>Every reflow costs something</h3>
             <p>
-              Each probe is a box the browser lays out, so it adds a little to every reflow on the page. A rAF loop costs the same every
-              frame instead. They break even at about five reflows per second in Chromium, and several times that in Safari, so under
-              constant layout churn, one shared rAF loop is cheaper.
+              Each probe is an anchor-positioned box, and Chromium lays out all of them on every reflow, even one that moves nothing. A
+              moving target also starts a transition every frame. For a single floating element, Floating UI is cheaper; for anything that
+              moves every frame, use a rAF loop.
+            </p>
+          </div>
+          <div class="limit">
+            <h3>Reports often arrive a frame late</h3>
+            <p>
+              In Chromium the transition event is dispatched in the frame after the change, so most changes are reported 16–19ms later. A
+              rAF loop sees them in the same frame. WebKit reports within a few milliseconds.
             </p>
           </div>
           <div class="limit">

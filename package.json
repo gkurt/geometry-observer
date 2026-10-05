@@ -1,7 +1,7 @@
 {
   "name": "geometry-observer",
   "version": "0.1.0",
-  "description": "An observer for element position and size, built on CSS anchor positioning. No polling, and nothing runs while the page is idle.",
+  "description": "An experiment: an observer for element position and size, built on CSS anchor positioning. No polling, and no work while the page is idle.",
   "keywords": [
     "anchor-positioning",
     "css",

@@ -46,10 +46,10 @@ Run in every engine Playwright can launch. Firefox can't launch from Playwright 
 
 ## What the latest run shows
 
-From [results.md](results.md): Chromium 153 for cost, Chromium 153 and WebKit 26.6 for coverage.
+From [results.md](results.md): Chromium 153 for cost, Chromium 153 and WebKit 26.6 for coverage. Values under 1ms vary by up to 2× between runs; the ordering doesn't.
 
-- **Idle pages are where geometry-observer wins.** It adds nothing while nothing changes. A rAF loop adds 0.2–2.2ms per frame with 10–1,000 targets, and keeps the page rendering every frame. Floating UI is close to zero too.
-- **Every reflow costs geometry-observer something, even one that moves nothing.** Each probe is laid out on every reflow: about 8ms per frame with 1,000 targets, against 1–2ms for the others. With 10 targets the cost is around 0.3ms.
-- **Constant motion is its worst case.** When every target moves every frame, each probe starts a transition and fires events each frame. That costs about 35ms per frame with 1,000 targets, against 1.3ms for a rAF loop and 5ms for Floating UI. For anything that moves continuously, a rAF loop is the right tool.
+- **geometry-observer is cheapest only when nothing changes.** It adds nothing then. While scrolling it beats Floating UI, which re-reads every target on each scroll event, but not a rAF loop. A rAF loop adds 0.2–0.9ms per frame with 10–1,000 targets, and keeps the page rendering every frame. Floating UI adds close to nothing as well.
+- **Every reflow costs geometry-observer something, even one that moves nothing.** Each probe is an anchor-positioned box that Chromium lays out on every reflow: about 8ms per frame with 1,000 targets, against under 1ms for the others. This doesn't depend on which properties transition or on containment. A probe with no transition at all costs the same.
+- **Constant motion is its worst case.** When every target moves every frame, each probe also starts a transition and fires events every frame: about 28ms per frame with 1,000 targets, against 0.7ms for a rAF loop and 4ms for Floating UI. `contain: strict` on the probes brought this down from about 35ms, by keeping Chromium to one layout per frame.
 - **Coverage is where it matches a rAF loop.** Both catch every change in the table. Floating UI misses a target that moves while it's scrolled out of view inside its scroller. `ResizeObserver` sees only size changes.
-- **Latency is usually a few milliseconds, sometimes a frame.** A report can arrive in the frame after the change (about 20ms), because the transition event is dispatched then. Chromium did this after a layout change, and WebKit after a transform animation ended.
+- **In Chromium, reports often arrive a frame late.** Most layout changes were reported 16–19ms later, because the transition event is dispatched in the following frame. A rAF loop sees them in the same frame. WebKit reported within a few milliseconds, except after a transform animation.

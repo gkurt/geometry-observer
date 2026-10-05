@@ -1,6 +1,8 @@
 # geometry-observer
 
-An observer for element position and size. It fires when an element moves for any reason, including a sibling above it growing, and runs no JavaScript while the page is idle.
+An experiment: an observer for element position and size built on CSS anchor positioning. It reports when an element moves for any reason, including a sibling above it growing, and does no work at all while the page is idle.
+
+It is not the cheapest way to track geometry once things start moving. Every observed element adds layout work to every reflow on the page, and constant motion costs far more than a `requestAnimationFrame` loop. [Performance](#performance) has the numbers, and when to use something else.
 
 ```bash
 npm install geometry-observer
@@ -8,9 +10,9 @@ npm install geometry-observer
 
 ## Why
 
-`ResizeObserver` reports size changes but not movement. `IntersectionObserver` can detect movement only if you rebuild it around the element's current rect after every callback. The usual alternative is a `requestAnimationFrame` loop that calls `getBoundingClientRect()` every frame, whether or not anything moved.
+`ResizeObserver` reports size changes but not movement. `IntersectionObserver` can detect movement only if you rebuild it around the element's current rect after every callback, which is what Floating UI's `autoUpdate` does. The other common approach is a `requestAnimationFrame` loop that calls `getBoundingClientRect()` every frame, whether or not anything moved.
 
-geometry-observer gets the browser to send an event instead:
+This library tries a third way: get the browser to send an event when layout moves an element.
 
 1. Each observed element gets a hidden probe element that copies its box with `anchor()` and `anchor-size()`. Layout keeps the probe's `top`, `left`, `width` and `height` in sync with the target.
 2. Those properties have a 1ms transition.
@@ -71,20 +73,39 @@ const ref = useCallback(
 
 ## What it reports
 
-| Change                          | geometry-observer     | ResizeObserver | IntersectionObserver | rAF polling |
-| ------------------------------- | --------------------- | -------------- | -------------------- | ----------- |
-| Element resized                 | yes                   | yes            | —                    | yes         |
-| Content changed its size        | yes                   | yes            | —                    | yes         |
-| A sibling above it grew         | yes                   | —              | if rebuilt each time | yes         |
-| A node was inserted above it    | yes                   | —              | if rebuilt each time | yes         |
-| An ancestor's padding changed   | yes                   | —              | if rebuilt each time | yes         |
-| An ancestor `transform` changed | yes                   | —              | —                    | yes         |
-| Scrolled                        | yes, via one listener | —              | yes                  | yes         |
-| Hidden with `display: none`     | `state: 'hidden'`     | 0×0            | —                    | 0×0         |
-| Removed from the document       | `state: 'detached'`   | 0×0            | —                    | 0×0         |
-| Work while the page is idle     | none                  | none           | none                 | every frame |
+Measured in Chromium and WebKit by [bench/](bench/). Floating UI's `autoUpdate` combines a `ResizeObserver`, scroll listeners and a rebuilt `IntersectionObserver`.
 
-Most position changes come from something else in the layout: a sibling growing, content loading above, an ancestor's padding. `ResizeObserver` misses all of them.
+| Change                                   | geometry-observer   | ResizeObserver | Floating UI `autoUpdate` | rAF loop |
+| ---------------------------------------- | ------------------- | -------------- | ------------------------ | -------- |
+| Element resized                          | yes                 | yes            | yes                      | yes      |
+| Content changed its size                 | yes                 | yes            | yes                      | yes      |
+| A sibling above it grew                  | yes                 | —              | yes                      | yes      |
+| A node was inserted above it             | yes                 | —              | yes                      | yes      |
+| An ancestor `transform` changed          | yes                 | —              | yes                      | yes      |
+| Scrolled                                 | yes                 | —              | yes                      | yes      |
+| Moved while off-screen or partly clipped | yes                 | —              | yes                      | yes      |
+| Moved while scrolled out of its scroller | yes                 | —              | —                        | yes      |
+| Hidden with `display: none`              | `state: 'hidden'`   | 0×0            | 0×0                      | 0×0      |
+| Removed from the document                | `state: 'detached'` | 0×0            | 0×0                      | 0×0      |
+
+## Performance
+
+Main-thread time each approach adds per frame in Chromium 153, for 100 and 1,000 observed elements. From [bench/results.md](bench/results.md), which has more scenarios. Values under 1ms vary by up to 2× between runs; the ordering doesn't.
+
+| Scenario                        | geometry-observer | rAF loop  | Floating UI `autoUpdate` |
+| ------------------------------- | ----------------- | --------- | ------------------------ |
+| Nothing changes                 | 0 / 0             | 0.2 / 0.9 | 0 / 0.2                  |
+| A reflow that moves nothing     | 0.9 / 7.7         | 0.1 / 0.6 | 0.1 / 0.8                |
+| Every element moves every frame | 3.4 / 28          | 0.1 / 0.7 | 0.7 / 4.2                |
+| Scrolling                       | 0.6 / 4.0         | 0.1 / 0.7 | 1.0 / 5.6                |
+
+It is cheapest only when nothing changes, and beats Floating UI (though not a rAF loop) while scrolling. Each probe is an anchor-positioned box, and Chromium lays out every one of them on every reflow, whether or not its target moved. That doesn't depend on which properties transition, or on containment: a probe with no transition at all costs the same. When a target moves, its probe also starts a transition and fires events, every frame the movement lasts.
+
+So:
+
+- **For one floating element** (a tooltip, a popover, a menu), use Floating UI. It is cheaper whenever layout changes, and catches everything here except a reference scrolled out of view inside its scroller.
+- **For anything that moves every frame**, use a rAF loop.
+- **geometry-observer fits** a page that is mostly still, where you want to hear about any movement with no idle cost, including elements scrolled out of view, and to tell hidden and removed elements apart.
 
 ## API
 
@@ -156,7 +177,8 @@ The probes live in a single `<div data-geometry-probes>` appended to `<body>`. T
 
 ## Caveats
 
-- **The cost is per reflow, not per frame.** Each probe is a box the browser lays out, so it adds a little to every reflow on the page, including reflows that don't move its target. A rAF loop costs the same every frame instead. The two break even at about five reflows per second in Chromium, and several times that in Safari. geometry-observer wins on idle pages and on what it catches; under constant layout churn, one shared rAF loop is cheaper. [bench/](bench/) compares it with a rAF loop, Floating UI's `autoUpdate` and `ResizeObserver` across scenarios.
+- **The cost is per reflow, not per frame.** See [Performance](#performance). Against a rAF loop it breaks even at about five reflows per second in Chromium, and several times that in Safari.
+- **Reports often arrive a frame late in Chromium.** The transition event is dispatched in the frame after the change, so most layout changes were reported 16–19ms later, where a rAF loop sees them in the same frame. WebKit reported within a few milliseconds.
 - **In Safari, CSS-only hiding goes unreported.** A target hidden by a pseudo-class or a stylesheet change, with no DOM mutation behind it, keeps its last `rendered` entry. Removal is always reported.
 - **Composited transform animations lag by about half a frame.** The rect is exact once the animation stops, but a few pixels behind while it runs.
 - **CSS resets can't turn it off.** The probe's styles are inline and `!important`, so a reset like `* { transition: none !important }` doesn't affect it.
