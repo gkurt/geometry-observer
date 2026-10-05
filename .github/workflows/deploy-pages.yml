@@ -26,13 +26,7 @@ jobs:
       - run: bun i
       # The homepage imports the real published artifact, so Pages exercises the
       # build rather than a copy of the source.
-      - run: bun run build
-      - name: Assemble site
-        run: |
-          mkdir -p _site
-          cp site/index.html _site/
-          cp dist/index.js _site/geometry-observer.js
-          cp dist/index.js.map _site/
+      - run: bun run site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

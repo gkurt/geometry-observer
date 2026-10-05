@@ -79,7 +79,10 @@ export function transitionFor(track: Track, settle: number): string {
  * reports no `hidden` / `detached` state. Nothing in the spec ties anchor
  * resolution to the parent element (it is defined over containing blocks, and a
  * `position: fixed` probe's containing block is always the viewport), so this is a
- * WebKit bug. Keeping the group is the right trade: teardown is documented as
+ * WebKit bug, and not one `contain` can paper over — `layout`, `style` and
+ * `strict`, on the group or on the probe, all leave it at zero, as does dropping
+ * `content-visibility`. Only removing the parent helps. Keeping the group is
+ * therefore the right trade: teardown is documented as
  * best-effort on every engine, whereas a probe per observed element directly under
  * `<body>` would reshape `body.children` for every page using the library.
  */

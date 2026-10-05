@@ -51,6 +51,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "site": "bun run build && rm -rf _site && mkdir -p _site && cp site/index.html _site/ && cp -R dist _site/dist",
     "typecheck": "tsc",
     "lint": "oxlint",
     "format": "oxfmt",

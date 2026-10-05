@@ -286,9 +286,13 @@
         padding: 6px 11px;
         cursor: pointer;
       }
-      button:hover {
+      button:hover:not(:disabled) {
         background: var(--accent-soft);
         border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
       }
       button:focus-visible,
       input:focus-visible {
@@ -448,6 +452,197 @@
         font-size: 11.5px;
         color: var(--ink-3);
       }
+
+      .lede {
+        color: var(--ink-2);
+        max-width: 62ch;
+      }
+      details.how {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 12px 16px;
+      }
+      details.how > summary {
+        cursor: pointer;
+        font-family: var(--display);
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      details.how > *:not(summary) {
+        margin-top: 12px;
+      }
+
+      /* ---- dimension overlay ---- */
+      .dim-stage {
+        min-height: 216px;
+        padding-bottom: 62px;
+        overflow: hidden;
+      }
+      #dimShift {
+        transition: translate 240ms ease;
+      }
+      #dimBox {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 11px 12px;
+        width: 210px;
+        height: 76px;
+        min-width: 110px;
+        min-height: 52px;
+        resize: both;
+        overflow: auto;
+        font-size: 12.5px;
+        line-height: 1.45;
+        transition:
+          width 240ms ease,
+          height 240ms ease;
+      }
+      .dim {
+        position: absolute;
+        pointer-events: none;
+        color: var(--accent);
+      }
+      .dim-w {
+        border-top: 1.5px solid var(--accent);
+      }
+      .dim-h {
+        border-left: 1.5px solid var(--accent);
+      }
+      .dim-w::before,
+      .dim-w::after,
+      .dim-h::before,
+      .dim-h::after {
+        content: '';
+        position: absolute;
+        background: var(--accent);
+      }
+      .dim-w::before,
+      .dim-w::after {
+        width: 1.5px;
+        height: 9px;
+        top: -5px;
+      }
+      .dim-w::before {
+        left: 0;
+      }
+      .dim-w::after {
+        right: 0;
+      }
+      .dim-h::before,
+      .dim-h::after {
+        height: 1.5px;
+        width: 9px;
+        left: -5px;
+      }
+      .dim-h::before {
+        top: 0;
+      }
+      .dim-h::after {
+        bottom: 0;
+      }
+      .chip {
+        position: absolute;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        background: var(--ground);
+        color: var(--accent);
+        padding: 0 5px;
+        border-radius: 3px;
+      }
+      .dim-w .chip {
+        left: 50%;
+        top: 0;
+        translate: -50% -50%;
+      }
+      .dim-h .chip {
+        top: 50%;
+        left: 9px;
+        translate: 0 -50%;
+      }
+      .dim-xy {
+        position: absolute;
+        pointer-events: none;
+        line-height: 1;
+        color: var(--warn);
+      }
+      .dim-xy .chip {
+        position: static;
+        display: inline-block;
+        color: var(--warn);
+      }
+
+      /* ---- connector wires ---- */
+      .wire-stage {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(32px, 11vw, 116px);
+        background: var(--sunk);
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        padding: 14px;
+      }
+      .wire-col {
+        max-height: 224px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
+      }
+      .wire-card {
+        flex: 0 0 auto;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12.5px;
+        transition: height 240ms ease;
+      }
+      .wire-card b {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+      }
+      #wireSvg {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: visible;
+      }
+      #wireSvg path {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.75;
+      }
+      #wireSvg circle {
+        fill: var(--accent);
+      }
+      @media (max-width: 560px) {
+        .wire-stage {
+          gap: 26px;
+          padding: 10px;
+        }
+        .wire-col {
+          max-height: 178px;
+        }
+        .wire-card {
+          font-size: 11px;
+          padding: 7px 8px;
+        }
+        .dim-stage {
+          padding-inline: 12px;
+        }
+      }
       @media (max-width: 560px) {
         .wrap {
           padding-block: 36px 56px;
@@ -461,9 +656,8 @@
         <p class="eyebrow">CSS mechanism · anchor positioning</p>
         <h1>geometry-observer</h1>
         <p class="deck">
-          Event-based element position and size observation. The layout engine tells you when something moved —
-          <b>no polling, no <code>requestAnimationFrame</code> loop, no observer re-arming</b>, and no main-thread work at all while nothing
-          changes.
+          The layout engine tells you when an element moved or resized. <b>No polling, no <code>requestAnimationFrame</code> loop</b>, and
+          no main-thread work at all while nothing changes.
         </p>
         <div class="links">
           <a href="https://github.com/gkurt/geometry-observer">GitHub</a>
@@ -479,32 +673,10 @@ bun add geometry-observer</pre>
       </header>
 
       <section>
-        <h2>The mechanism</h2>
-        <div class="prose">
-          <p>
-            <code>anchor()</code> and <code>anchor-size()</code> resolve a target's box into <strong>computed lengths</strong> on a hidden
-            probe element. Computed lengths take part in <strong>transitions</strong>. A running transition dispatches a
-            <strong>DOM event</strong>. That's the whole trick.
-          </p>
-        </div>
-        <pre><span class="c">/* the probe — a top-layer element mirroring #target's box */</span>
-#probe {
-  position: fixed;
-  <span class="k">position-anchor</span>: --target;
-  <span class="k">top</span>: anchor(top);   <span class="k">left</span>:   anchor(left);
-  <span class="k">width</span>: anchor-size(width); <span class="k">height</span>: anchor-size(height);
-  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;  <span class="c">/* the tap */</span>
-}</pre>
-      </section>
-
-      <section>
         <h2>Live</h2>
-        <div class="prose">
-          <p>
-            The dashed frame is a probe, positioned entirely by CSS — no code moves it. The numbers come from observer callbacks. Resize the
-            box by its corner, or change the layout around it.
-          </p>
-        </div>
+        <p class="lede">
+          The dashed frame is the probe, positioned entirely by CSS. Resize the box by its corner, or change the layout around it.
+        </p>
         <div class="panel">
           <div class="bar">
             <span>GeometryObserver</span><span class="live"><span class="dot"></span><span id="mode">every change</span></span>
@@ -542,6 +714,66 @@ bun add geometry-observer</pre>
       </section>
 
       <section>
+        <h2>Numbers CSS can't print</h2>
+        <p class="lede">
+          CSS can put a box beside another box. It cannot tell you how big that box is, or where it ended up. These labels are live
+          geometry, as text — including the position, which <code>ResizeObserver</code> never reports.
+        </p>
+        <div class="panel">
+          <div class="bar">
+            <span>Dimension overlay</span><span class="live"><span class="dot"></span><span id="dimEvents">0 events</span></span>
+          </div>
+          <div class="body">
+            <div class="stage dim-stage" id="dimStage">
+              <div id="dimShift">
+                <div id="dimPush"></div>
+                <div id="dimBox"><b>Drag my corner.</b> Nothing below is a CSS length.</div>
+              </div>
+              <div class="dim dim-w" id="dimW"><span class="chip">–</span></div>
+              <div class="dim dim-h" id="dimH"><span class="chip">–</span></div>
+              <div class="dim-xy" id="dimXY"><span class="chip">–</span></div>
+            </div>
+            <div class="controls">
+              <button id="dimPushBtn">Insert block above</button>
+              <button id="dimGrow">Grow the box</button>
+              <button id="dimTilt">Shift ancestor</button>
+              <button id="dimReset">Reset</button>
+            </div>
+          </div>
+          <div class="note">
+            Every label updates from a callback. Move nothing and <b>nothing runs</b> — the counter stops the moment the box settles.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Lines CSS can't draw</h2>
+        <p class="lede">
+          Two independent scroll containers, one SVG overlay. Each curve needs both endpoints' real rects, so there is no CSS that can
+          express it — and every card moves whenever a <em>different</em> card is added, removed or grown.
+        </p>
+        <div class="panel">
+          <div class="bar">
+            <span>Connectors</span><span class="live"><span class="dot"></span><span id="wireEvents">0 events</span></span>
+          </div>
+          <div class="body">
+            <div class="wire-stage" id="wireStage">
+              <svg id="wireSvg" aria-hidden="true"></svg>
+              <div class="wire-col" id="wireLeft"></div>
+              <div class="wire-col" id="wireRight"></div>
+            </div>
+            <div class="controls">
+              <button id="wireAdd">Add a pair</button>
+              <button id="wireDrop">Remove one</button>
+              <button id="wireGrow">Grow a card</button>
+              <button id="wireReset">Reset</button>
+            </div>
+          </div>
+          <div class="note">Scroll either column too — scrolling is routed to the observers that can be affected by it.</div>
+        </div>
+      </section>
+
+      <section>
         <h2>What fires</h2>
         <div class="tbl">
           <table>
@@ -561,12 +793,6 @@ bun add geometry-observer</pre>
                 <td class="n">—</td>
               </tr>
               <tr>
-                <td>Content changed its size</td>
-                <td class="y">event</td>
-                <td class="y">event</td>
-                <td class="n">—</td>
-              </tr>
-              <tr>
                 <td>A sibling above it grew</td>
                 <td class="y">event</td>
                 <td class="n">—</td>
@@ -574,12 +800,6 @@ bun add geometry-observer</pre>
               </tr>
               <tr>
                 <td>A node was inserted above it</td>
-                <td class="y">event</td>
-                <td class="n">—</td>
-                <td class="n">re-arm only</td>
-              </tr>
-              <tr>
-                <td>An ancestor's padding changed</td>
                 <td class="y">event</td>
                 <td class="n">—</td>
                 <td class="n">re-arm only</td>
@@ -617,29 +837,35 @@ bun add geometry-observer</pre>
             </tbody>
           </table>
         </div>
-        <div class="prose">
-          <p>
-            The middle rows are the point. “A sibling above me grew, so I moved” is the most common way an element changes position, and it
-            is exactly the case no observer reports.
-          </p>
-        </div>
+        <p class="lede">
+          The middle rows are the point: “a sibling above me grew, so I moved” is the most common way an element changes position, and no
+          other observer reports it.
+        </p>
       </section>
 
       <section>
         <h2>Honest about the cost</h2>
-        <div class="prose">
-          <p>
-            Each probe is a real box the engine lays out, so probes add time to <em>every</em> reflow — including ones in which nothing they
-            watch moved. A sampler instead pays on every frame, moving or not. The two meet at a low single-digit number of reflows per
-            second.
+        <p class="lede">
+          A probe is a real box, so it adds time to <em>every</em> reflow — even ones where nothing it watches moved. A sampler instead pays
+          on every frame, moving or not. The two meet at a low single-digit number of reflows per second, which makes this an
+          <strong>idle-cost and coverage win, not a throughput win</strong>.
+        </p>
+
+        <details class="how">
+          <summary>How it works</summary>
+          <p class="lede">
+            <code>anchor()</code> and <code>anchor-size()</code> resolve a target's box into computed lengths on a hidden probe. Computed
+            lengths transition. A running transition dispatches a DOM event. That's the whole trick.
           </p>
-          <p>
-            So this is an <strong>idle-cost and coverage win, not a throughput win</strong>. For a page that mostly sits still — tooltips,
-            popovers, connector lines, rulers, drag affordances — probes cost nothing and a sampler burns milliseconds every second forever.
-            Under sustained layout churn, a single shared sampler is cheaper. <code>track: 'size'</code> roughly halves the probe's cost
-            when you only need one axis.
-          </p>
-        </div>
+          <pre><span class="c">/* the probe — a top-layer element mirroring #target's box */</span>
+#probe {
+  position: fixed;
+  <span class="k">position-anchor</span>: --target;
+  <span class="k">top</span>: anchor(top);   <span class="k">left</span>:   anchor(left);
+  <span class="k">width</span>: anchor-size(width); <span class="k">height</span>: anchor-size(height);
+  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;  <span class="c">/* the tap */</span>
+}</pre>
+        </details>
       </section>
 
       <footer>
@@ -651,7 +877,7 @@ bun add geometry-observer</pre>
     <div id="caliper" popover="manual"></div>
 
     <script type="module">
-      import { GeometryObserver, isSupported } from './geometry-observer.js';
+      import { GeometryObserver, isSupported } from './dist/index.js';
 
       const $ = (id) => document.getElementById(id);
       if (!isSupported()) $('unsupported').hidden = false;
@@ -733,6 +959,154 @@ bun add geometry-observer</pre>
         observer.reconfigure({ settle: e.target.checked ? 250 : 0 });
         $('mode').textContent = e.target.checked ? 'settle 250ms' : 'every change';
       };
+
+      /* ---------- demo 2: live dimensions ---------- */
+      {
+        const stage = $('dimStage');
+        const shift = $('dimShift');
+        const box = $('dimBox');
+        const [lineW, lineH, chipXY] = [$('dimW'), $('dimH'), $('dimXY')];
+        let dimEvents = 0;
+        let pushed = 0;
+
+        const place = (rect) => {
+          const s = stage.getBoundingClientRect();
+          const x = rect.x - s.x;
+          const y = rect.y - s.y;
+
+          lineW.style.cssText = `left:${x}px; top:${y + rect.height + 18}px; width:${rect.width}px`;
+          lineW.firstElementChild.textContent = `${Math.round(rect.width)} px`;
+
+          lineH.style.cssText = `left:${x + rect.width + 18}px; top:${y}px; height:${rect.height}px`;
+          lineH.firstElementChild.textContent = `${Math.round(rect.height)} px`;
+
+          chipXY.style.cssText = `left:${x}px; top:${y + rect.height + 32}px`;
+          chipXY.firstElementChild.textContent = `x ${Math.round(x)} · y ${Math.round(y)}`;
+        };
+
+        new GeometryObserver((entries) => {
+          dimEvents += entries.length;
+          $('dimEvents').textContent = `${dimEvents.toLocaleString()} event${dimEvents === 1 ? '' : 's'}`;
+          const last = entries.at(-1);
+          if (last.state === 'rendered') place(last.rect);
+        }).observe(box);
+
+        const MAX_BLOCKS = 3;
+        $('dimPushBtn').onclick = () => {
+          if (pushed >= MAX_BLOCKS) return;
+          const el = document.createElement('div');
+          el.className = 'blk';
+          el.textContent = `block ${++pushed} — nothing here touches the box`;
+          $('dimPush').append(el);
+          $('dimPushBtn').disabled = pushed >= MAX_BLOCKS;
+        };
+        $('dimGrow').onclick = () => {
+          box.style.width = `${Math.min(320, box.getBoundingClientRect().width + 40)}px`;
+          box.style.height = `${Math.min(150, box.getBoundingClientRect().height + 18)}px`;
+        };
+        $('dimTilt').onclick = () => {
+          shift.style.translate = shift.style.translate ? '' : '48px 16px';
+        };
+        $('dimReset').onclick = () => {
+          $('dimPush').replaceChildren();
+          pushed = 0;
+          $('dimPushBtn').disabled = false;
+          shift.style.translate = '';
+          box.style.width = '210px';
+          box.style.height = '76px';
+        };
+      }
+
+      /* ---------- demo 3: connector wires ---------- */
+      {
+        const stage = $('wireStage');
+        const svg = $('wireSvg');
+        const cols = { left: $('wireLeft'), right: $('wireRight') };
+        const LABELS = ['fetchUser', 'parseToken', 'renderShell', 'hydrate', 'prefetch', 'flushLogs'];
+        const SINKS = ['/session', 'cache', 'layout tree', 'islands', 'edge', 'telemetry'];
+        let pairs = [];
+        let wireEvents = 0;
+
+        const observer = new GeometryObserver((entries) => {
+          wireEvents += entries.length;
+          $('wireEvents').textContent = `${wireEvents.toLocaleString()} event${wireEvents === 1 ? '' : 's'}`;
+          draw();
+        });
+
+        function draw() {
+          const s = stage.getBoundingClientRect();
+          const bands = { left: cols.left.getBoundingClientRect(), right: cols.right.getBoundingClientRect() };
+          const out = [];
+
+          for (const pair of pairs) {
+            const a = pair.left.getBoundingClientRect();
+            const b = pair.right.getBoundingClientRect();
+            const x1 = a.right - s.x;
+            const y1 = a.y + a.height / 2 - s.y;
+            const x2 = b.x - s.x;
+            const y2 = b.y + b.height / 2 - s.y;
+
+            // Fade a wire whose endpoint has been scrolled out of its column.
+            const shown =
+              a.bottom > bands.left.top + 2 &&
+              a.top < bands.left.bottom - 2 &&
+              b.bottom > bands.right.top + 2 &&
+              b.top < bands.right.bottom - 2;
+            const bend = Math.max(26, (x2 - x1) * 0.5);
+
+            out.push(
+              `<path d="M${x1} ${y1} C${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}" opacity="${shown ? 0.85 : 0.12}"/>`,
+              `<circle cx="${x1}" cy="${y1}" r="2.75" opacity="${shown ? 0.9 : 0.12}"/>`,
+              `<circle cx="${x2}" cy="${y2}" r="2.75" opacity="${shown ? 0.9 : 0.12}"/>`,
+            );
+          }
+          svg.innerHTML = out.join('');
+        }
+
+        function card(side, text) {
+          const el = document.createElement('div');
+          el.className = 'wire-card';
+          el.innerHTML = `<b>${side === 'left' ? '→' : '←'}</b> ${text}`;
+          cols[side].append(el);
+          observer.observe(el);
+          return el;
+        }
+
+        function addPair() {
+          const i = pairs.length;
+          pairs.push({
+            left: card('left', LABELS[i % LABELS.length]),
+            right: card('right', SINKS[i % SINKS.length]),
+          });
+          draw();
+        }
+
+        function dropPair() {
+          const pair = pairs.pop();
+          if (!pair) return;
+          for (const el of [pair.left, pair.right]) {
+            observer.unobserve(el);
+            el.remove();
+          }
+          draw();
+        }
+
+        $('wireAdd').onclick = addPair;
+        $('wireDrop').onclick = dropPair;
+        $('wireGrow').onclick = () => {
+          const pair = pairs[Math.floor(pairs.length / 2)];
+          if (!pair) return;
+          const grown = pair.left.style.height !== '';
+          pair.left.style.height = grown ? '' : '82px';
+        };
+        $('wireReset').onclick = () => {
+          while (pairs.length) dropPair();
+          for (let i = 0; i < 4; i++) addPair();
+        };
+
+        for (let i = 0; i < 4; i++) addPair();
+        addEventListener('resize', draw, { passive: true });
+      }
     </script>
   </body>
 </html>
