@@ -44,7 +44,7 @@ anchors('probes', () => {
     expect(probeCount() - probesBefore).toBe(12);
     // One group element at most, never one body child per target.
     expect(document.body.children.length - bodyChildrenBefore).toBeLessThanOrEqual(1);
-    expect(document.querySelectorAll(`body > [popover]`).length).toBe(0);
+    expect(document.querySelectorAll(`body > [popover]:not([${PROBE_GROUP_ATTRIBUTE}])`).length).toBe(0);
   });
 
   test('releases probes on unobserve', async () => {
@@ -190,5 +190,22 @@ anchors('reconfigure', () => {
     box().style.width = '250px';
     await quiet();
     expect(rec.drain().length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('keeps a pending change when a popover opens and the group is raised', async () => {
+    host.insertAdjacentHTML('beforeend', '<div id="pop" popover="manual">tip</div>');
+    const pop = host.querySelector<HTMLElement>('#pop')!;
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback, { settle: 150 });
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    box().style.width = '170px';
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    pop.showPopover();
+    await quiet();
+    expect(Math.round(rec.drain().at(-1)?.rect.width ?? 0)).toBe(170);
+    pop.hidePopover();
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { GeometryObserver, isSupported, observeGeometry } from '#src/index.ts';
-import { REPORTS_TEARDOWN } from './capabilities.ts';
+import { REPORTS_CSS_ONLY_TEARDOWN } from './capabilities.ts';
 import { mount, quiet, recorder } from './helpers.ts';
 
 let host: HTMLElement;
@@ -110,6 +110,55 @@ describe('delivery', () => {
     expect(rec.count()).toBe(0);
   });
 
+  test('reports moves inside a dialog opened after observing began', async () => {
+    host.insertAdjacentHTML(
+      'beforeend',
+      '<dialog id="dlg" style="margin:0;padding:0"><div id="gap" style="height:10px"></div><div id="inner" style="width:40px;height:10px"></div></dialog>',
+    );
+    const dialog = host.querySelector<HTMLDialogElement>('#dlg')!;
+    const inner = host.querySelector<HTMLElement>('#inner')!;
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+
+    dialog.showModal();
+    observer.observe(inner);
+    await quiet();
+    rec.drain();
+
+    host.querySelector<HTMLElement>('#gap')!.style.height = '50px';
+    await quiet();
+    const last = rec.drain().at(-1);
+    expect(last?.target).toBe(inner);
+    expect(last!.rect.top).toBeCloseTo(inner.getBoundingClientRect().top, 1);
+    dialog.close();
+  });
+
+  test('reports a target in a dialog as the dialog opens, then its moves', async () => {
+    host.insertAdjacentHTML(
+      'beforeend',
+      '<dialog id="dlg" style="margin:0;padding:0"><div id="gap" style="height:10px"></div><div id="inner" style="width:40px;height:10px"></div></dialog>',
+    );
+    const dialog = host.querySelector<HTMLDialogElement>('#dlg')!;
+    const inner = host.querySelector<HTMLElement>('#inner')!;
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(inner);
+    await quiet();
+    rec.drain();
+
+    dialog.showModal();
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('rendered');
+
+    host.querySelector<HTMLElement>('#gap')!.style.height = '50px';
+    await quiet();
+    const last = rec.drain().at(-1);
+    expect(last!.rect.top).toBeCloseTo(inner.getBoundingClientRect().top, 1);
+    dialog.close();
+  });
+
   test('reports an exact rect after a nested scroller scrolls', async () => {
     host.innerHTML =
       '<div id="sc" style="height:80px;overflow:auto;width:200px">' +
@@ -153,8 +202,7 @@ describe('state', () => {
   });
 });
 
-/** Skipped where the engine can't report teardown, see {@link REPORTS_TEARDOWN}. */
-describe.skipIf(!REPORTS_TEARDOWN)('state: teardown', () => {
+describe('state: teardown', () => {
   test('distinguishes rendered, hidden and detached', async () => {
     const rec = recorder();
     observer = new GeometryObserver(rec.callback);
@@ -209,6 +257,83 @@ describe.skipIf(!REPORTS_TEARDOWN)('state: teardown', () => {
     host.append(target);
     await quiet();
     expect(rec.count()).toBe(0);
+  });
+  test('reports a target hidden by a class on an ancestor', async () => {
+    const sheet = document.createElement('style');
+    sheet.textContent = '.gone { display: none }';
+    document.head.append(sheet);
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    host.classList.add('gone');
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('hidden');
+    sheet.remove();
+  });
+
+  test('reports a target detached with its ancestor', async () => {
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    host.remove();
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('detached');
+  });
+
+  test('reports a target inside a popover that closes', async () => {
+    host.innerHTML = '<div id="pop" popover="manual"><div id="inner" style="width:40px;height:10px"></div></div>';
+    const pop = host.querySelector<HTMLElement>('#pop')!;
+    pop.showPopover();
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(host.querySelector('#inner')!);
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('rendered');
+
+    pop.hidePopover();
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('hidden');
+  });
+
+  test('keeps reporting moves after a target is hidden and shown again', async () => {
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+
+    box().style.display = 'none';
+    await quiet();
+    box().style.display = '';
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('rendered');
+
+    pad().style.height = '70px';
+    await quiet();
+    const last = rec.drain().at(-1);
+    expect(last?.moved).toBe(true);
+    expect(last!.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
+  });
+
+  /** Skipped where the engine can't see it, see {@link REPORTS_CSS_ONLY_TEARDOWN}. */
+  test.skipIf(!REPORTS_CSS_ONLY_TEARDOWN)('reports a target hidden by a stylesheet change alone', async () => {
+    const sheet = document.createElement('style');
+    document.head.append(sheet);
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    sheet.sheet!.insertRule('#box { display: none }');
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('hidden');
+    sheet.remove();
   });
 });
 

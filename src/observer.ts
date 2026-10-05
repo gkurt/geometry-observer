@@ -1,5 +1,5 @@
-import { createProbe, releaseProbeGroup, retireProbe, transitionFor } from './probe.ts';
-import { isSupported } from './support.ts';
+import { createProbe, raiseProbeGroup, releaseProbeGroup, retireProbe, transitionFor } from './probe.ts';
+import { isSupported, missesAnchorLoss } from './support.ts';
 import type { BatchMode, GeometryCallback, GeometryEntry, GeometryObserverInit, GeometryState, ObserveOptions, Track } from './types.ts';
 
 interface Watch {
@@ -29,6 +29,7 @@ interface Watch {
 const live = new Set<GeometryObserver>();
 let listening = false;
 let samplerTick = 0;
+let mutations: MutationObserver | null = null;
 
 function onScroll(event: Event): void {
   for (const observer of live) observer.wakeWithin(event.target);
@@ -38,14 +39,43 @@ function onViewportChange(): void {
   for (const observer of live) observer.wakeAll();
 }
 
+/**
+ * A popover or dialog opening or closing can show or hide targets inside it, and
+ * hiding a popover changes no attribute, so WebKit's mutation path can't see it.
+ */
+function onToggle(event: Event): void {
+  if ('newState' in event && event.newState === 'open') raiseProbeGroup(event.target);
+  for (const observer of live) observer.wakeWithin(event.target);
+}
+
+/**
+ * WebKit doesn't restyle a probe when its anchor is removed or hidden, so no
+ * transition reports it (see `missesAnchorLoss()`). There, the DOM changes that
+ * remove or hide an element wake the targets they can affect instead.
+ */
+function onMutations(records: MutationRecord[]): void {
+  const changed = new Set<Node>();
+  let removed = false;
+  for (const record of records) {
+    if (record.type === 'attributes') changed.add(record.target);
+    else if (record.removedNodes.length > 0) removed = true;
+  }
+  for (const observer of live) observer.wakeAffected(changed, removed);
+}
+
 function enlist(observer: GeometryObserver): void {
   live.add(observer);
   if (!listening) {
     listening = true;
     addEventListener('scroll', onScroll, { capture: true, passive: true });
     addEventListener('resize', onViewportChange, { passive: true });
+    addEventListener('toggle', onToggle, { capture: true, passive: true });
     visualViewport?.addEventListener('resize', onViewportChange, { passive: true });
     visualViewport?.addEventListener('scroll', onViewportChange, { passive: true });
+    if (missesAnchorLoss()) {
+      mutations = new MutationObserver(onMutations);
+      mutations.observe(document, { subtree: true, childList: true, attributes: true });
+    }
   }
   // Without anchor positioning there are no events to listen to, so sample instead.
   if (!isSupported() && samplerTick === 0) {
@@ -65,6 +95,9 @@ function delist(observer: GeometryObserver): void {
   removeEventListener('resize', onViewportChange);
   visualViewport?.removeEventListener('resize', onViewportChange);
   visualViewport?.removeEventListener('scroll', onViewportChange);
+  removeEventListener('toggle', onToggle, { capture: true });
+  mutations?.disconnect();
+  mutations = null;
   if (samplerTick !== 0) cancelAnimationFrame(samplerTick);
   samplerTick = 0;
   releaseProbeGroup();
@@ -83,6 +116,13 @@ function measure(target: Element): { rect: DOMRect; state: GeometryState; key: s
       : 'hidden'
     : 'detached';
   return { rect, state, key: `${state}|${rect.x},${rect.y},${rect.width},${rect.height}` };
+}
+
+/** Whether `element` or one of its ancestors is in `nodes`, across shadow roots. */
+function hasAncestorIn(element: Element, nodes: ReadonlySet<Node>): boolean {
+  for (let node: Node | null = element; node !== null; node = node instanceof ShadowRoot ? node.host : node.parentNode)
+    if (nodes.has(node)) return true;
+  return false;
 }
 
 /** `Element` carries no `style`; every element we can anchor to does. */
@@ -226,12 +266,24 @@ export class GeometryObserver {
     }
   }
 
-  /** @internal A scroller moved; only elements inside it can have shifted. */
+  /** @internal A scroller moved or a popover toggled; only elements inside it can have changed. */
   wakeWithin(scroller: EventTarget | null): void {
     if (this.#watches.size === 0) return;
     const root = scroller instanceof Element ? scroller : null;
     for (const target of this.#watches.keys())
       if (root === null || root === document.scrollingElement || root.contains(target)) this.#dirty.add(target);
+
+    if (this.#dirty.size > 0) this.#wakeScheduled();
+  }
+
+  /**
+   * @internal Wakes targets that a batch of DOM mutations can have removed or
+   * hidden: any target no longer connected, and any whose attributes, or an
+   * ancestor's, changed.
+   */
+  wakeAffected(changed: ReadonlySet<Node>, removed: boolean): void {
+    for (const target of this.#watches.keys())
+      if ((removed && !target.isConnected) || (changed.size > 0 && hasAncestorIn(target, changed))) this.#dirty.add(target);
 
     if (this.#dirty.size > 0) this.#wakeScheduled();
   }

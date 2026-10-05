@@ -57,9 +57,14 @@ defined:
 
 - **`position-anchor`**, rather than naming the anchor inside each `anchor()`
   call, is what makes the engine scroll-adjust the probe.
-- **`popover="manual"`** puts the probe in the top layer. Without it, a probe
-  inside a transformed subtree moves with the target, its insets never change,
-  and ancestor `transform` changes go unreported.
+- **`popover="manual"`** on the probe group puts every probe in the top layer.
+  Without it, a probe inside a transformed subtree moves with the target, its
+  insets never change, and ancestor `transform` changes go unreported. It's on
+  the group, not each probe: per-probe `showPopover()` made `observe()`
+  quadratic in Chromium (1,000 targets took over 4s) and made each probe's
+  share of a reflow up to twice as large. The group is re-raised whenever a
+  popover or dialog opens, since an anchor in a later top-layer element can't be
+  resolved.
 - **Length fallbacks** in `anchor(top, …)` make teardown observable. Without one,
   a lost anchor resolves to `auto`, and a length doesn't transition to `auto`.
 - **`!important` on every probe declaration**. Otherwise a reset like
@@ -68,6 +73,11 @@ defined:
 Scrolling can't start a transition (the engine applies scroll offsets after
 layout), so it's handled by one passive capture-phase listener that wakes the
 targets inside the element that scrolled.
+
+WebKit doesn't restyle a probe whose anchor is removed or hidden, so teardown
+raises no transition there. `src/support.ts` measures this, and in engines that
+need it the observer adds one `MutationObserver` on the document that wakes the
+targets a removal or attribute change can affect.
 
 ## Coding Conventions
 
@@ -92,8 +102,8 @@ again and update it everywhere it appears. Don't add a performance or coverage
 claim you haven't measured.
 
 Engine differences are measured, not sniffed. `test/capabilities.ts` checks
-whether the current browser reports teardown, so the teardown tests start running
-on an engine once it supports it.
+whether the current browser reports a target hidden by CSS alone, so that test
+starts running on an engine once it supports it.
 
 ## Documentation
 

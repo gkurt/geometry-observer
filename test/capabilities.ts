@@ -1,39 +1,33 @@
 import { isSupported } from '#src/index.ts';
+import { GROUP_STYLE, PROBE_STYLE } from '#src/probe.ts';
 
 /**
- * Whether this engine reports a target being hidden or detached.
+ * Whether this engine reports a target hidden by a CSS change alone, with no DOM
+ * mutation behind it: a stylesheet edit, or a pseudo-class like `:hover`.
  *
- * That depends on the probe's `anchor()` length fallback, which WebKit 26 ignores
- * whenever the probe has an element parent (see `src/probe.ts`). Measured rather
- * than assumed, so the teardown tests start running on an engine once it works.
- * The sampling fallback always sees teardown.
+ * That depends on the engine restyling the probe when its anchor goes away, which
+ * WebKit 26 and 27 don't do (see `src/support.ts`). The observer covers DOM
+ * mutations there, but a CSS-only change raises nothing it can see. Measured rather
+ * than assumed, so the test starts running on an engine once it works. The
+ * sampling fallback always sees it.
  */
-async function anchorReportsTeardown(): Promise<boolean> {
+async function anchorReportsCssOnlyTeardown(): Promise<boolean> {
+  const sheet = document.createElement('style');
+  document.head.append(sheet);
   const host = document.createElement('div');
-  host.innerHTML = '<div style="anchor-name:--cap-probe;width:40px;height:12px"></div>';
+  host.innerHTML = '<div class="cap-target" style="anchor-name:--cap-probe;width:40px;height:12px"></div>';
   document.body.append(host);
-  const target = host.querySelector<HTMLElement>('div')!;
 
-  // Mirror the library, wrapper included: the wrapper is what WebKit trips on.
   const group = document.createElement('div');
-  group.style.setProperty('display', 'contents', 'important');
-  document.body.append(group);
-
+  group.setAttribute('popover', 'manual');
+  for (const [property, value] of Object.entries(GROUP_STYLE)) group.style.setProperty(property, value, 'important');
   const probe = document.createElement('div');
-  probe.setAttribute('popover', 'manual');
-  const declarations: Record<string, string> = {
-    position: 'fixed',
-    visibility: 'hidden',
-    'pointer-events': 'none',
-    'position-anchor': '--cap-probe',
-    top: 'anchor(top, -99999px)',
-    width: 'anchor-size(width, 0px)',
-    transition: 'top 1ms 0ms, width 1ms 0ms',
-  };
+  const declarations = { ...PROBE_STYLE, 'position-anchor': '--cap-probe', transition: 'top 1ms, width 1ms' };
   for (const [property, value] of Object.entries(declarations)) probe.style.setProperty(property, value, 'important');
   group.append(probe);
+  document.body.append(group);
   try {
-    probe.showPopover();
+    group.showPopover();
   } catch {
     // No top layer. The measurement below still gives the answer.
   }
@@ -41,12 +35,13 @@ async function anchorReportsTeardown(): Promise<boolean> {
   let fired = 0;
   probe.addEventListener('transitionstart', () => fired++);
   await new Promise((resolve) => setTimeout(resolve, 200));
-  target.style.display = 'none';
+  sheet.sheet?.insertRule('.cap-target { display: none }');
   await new Promise((resolve) => setTimeout(resolve, 200));
 
   group.remove();
   host.remove();
+  sheet.remove();
   return fired > 0;
 }
 
-export const REPORTS_TEARDOWN = !isSupported() || (await anchorReportsTeardown());
+export const REPORTS_CSS_ONLY_TEARDOWN = !isSupported() || (await anchorReportsCssOnlyTeardown());

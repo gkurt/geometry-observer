@@ -253,35 +253,57 @@
       .install {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
         border: 1px solid var(--line);
         border-radius: 7px;
         background: var(--surface);
-        padding: 4px 4px 4px 6px;
+        padding: 4px 4px 4px 12px;
         min-height: 42px;
         max-width: 100%;
-      }
-      .install select {
-        font-family: var(--mono);
-        font-size: 12px;
-        color: var(--ink-2);
-        background: var(--sunk);
-        border: 0;
-        border-radius: 4px;
-        padding: 4px 6px;
-        cursor: pointer;
       }
       .install code {
         font-size: 13px;
         background: none;
-        padding: 0 6px;
+        padding: 0;
         white-space: nowrap;
         overflow-x: auto;
         scrollbar-width: none;
         min-width: 0;
-        flex: 1 1 auto;
       }
-      .install button {
+      /* A transparent native select over the caret: clicking opens the real
+         dropdown, while the package manager name stays plain, selectable text. */
+      .pm-pick {
+        position: relative;
+        display: inline-grid;
+        place-items: center;
+        width: 14px;
+        height: 18px;
+        margin-left: 1px;
+        vertical-align: -4px;
+        border-radius: 3px;
+        color: var(--ink-3);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .pm-pick:hover {
+        color: var(--accent);
+        background: var(--sunk);
+      }
+      .pm-pick:has(select:focus-visible) {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .pm-pick select {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .copy {
+        display: grid;
         border: 0;
         background: none;
         font-family: var(--mono);
@@ -289,8 +311,16 @@
         color: var(--ink-3);
         padding: 6px 8px;
       }
-      .install button:hover {
+      .copy:hover {
         background: var(--sunk);
+      }
+      /* Every label shares one cell, so the button is as wide as the longest
+         and swapping labels can't shift the layout. */
+      .copy span {
+        grid-area: 1 / 1;
+      }
+      .copy span:not([data-shown]) {
+        visibility: hidden;
       }
 
       .code {
@@ -950,14 +980,23 @@
           </p>
           <div class="actions">
             <div class="install">
-              <select id="pm" aria-label="Package manager">
-                <option value="npm install">npm</option>
-                <option value="pnpm add">pnpm</option>
-                <option value="yarn add">yarn</option>
-                <option value="bun add">bun</option>
-              </select>
-              <code id="installCmd">npm install geometry-observer</code>
-              <button type="button" id="installCopy">Copy</button>
+              <code
+                ><span id="pmName">npm</span
+                ><span class="pm-pick"
+                  ><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" /></svg
+                  ><select id="pm" aria-label="Package manager">
+                    <option value="npm install">npm</option>
+                    <option value="pnpm add">pnpm</option>
+                    <option value="yarn add">yarn</option>
+                    <option value="bun add">bun</option>
+                  </select></span
+                >
+                <span id="pmVerb">install</span> geometry-observer</code
+              >
+              <button type="button" class="copy" id="installCopy">
+                <span data-label="copy" data-shown>Copy</span><span data-label="copied">Copied</span><span data-label="failed">Failed</span>
+              </button>
             </div>
             <a class="button primary" href="https://github.com/gkurt/geometry-observer#usage">Read the docs</a>
           </div>
@@ -1200,15 +1239,16 @@ observer.<span class="f">observe</span>(button);</pre>
             <h3>The cost is per reflow, not per frame</h3>
             <p>
               Each probe is a box the browser lays out, so it adds a little to every reflow on the page. A rAF loop costs the same every
-              frame instead. They break even at a low single-digit number of reflows per second, so under constant layout churn, one shared
-              rAF loop is cheaper.
+              frame instead. They break even at about five reflows per second in Chromium, and several times that in Safari, so under
+              constant layout churn, one shared rAF loop is cheaper.
             </p>
           </div>
           <div class="limit">
-            <h3>Safari doesn't report teardown</h3>
+            <h3>Safari misses CSS-only hiding</h3>
             <p>
-              WebKit ignores the <code>anchor()</code> fallback that turns a lost anchor into an event, so Safari never reports
-              <code>hidden</code> or <code>detached</code>. Unobserve elements from the code that removes them.
+              WebKit doesn't restyle a probe when its anchor goes away, so in Safari the observer also watches DOM mutations. Removal is
+              always reported, and so is hiding through a <code>style</code>, <code>class</code> or other attribute change. A target hidden
+              by CSS alone, like a <code>:hover</code> rule, isn't.
             </p>
           </div>
           <div class="limit">
@@ -1220,8 +1260,9 @@ observer.<span class="f">observe</span>(button);</pre>
           <div class="limit">
             <h3>Firefox uses the fallback</h3>
             <p>
-              Firefox accepts the CSS, but anchor-driven changes never start a transition there. The observer detects this and checks every
-              frame instead, with the same API.
+              Firefox accepts the CSS, but doesn't yet support
+              <a href="https://caniuse.com/wf-anchor-positioning-animations">transitions on anchor-driven changes</a>. The observer detects
+              this and checks every frame instead, with the same API.
             </p>
           </div>
         </div>
@@ -1257,9 +1298,15 @@ observer.<span class="f">observe</span>(button);</pre>
                 <td class="y">yes</td>
               </tr>
               <tr>
-                <td><code>hidden</code> / <code>detached</code> state</td>
+                <td><code>detached</code> state</td>
                 <td class="y">yes</td>
-                <td class="bad">no</td>
+                <td class="y">yes</td>
+                <td class="y">yes</td>
+              </tr>
+              <tr>
+                <td><code>hidden</code> state</td>
+                <td class="y">yes</td>
+                <td>from DOM changes</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
@@ -1290,22 +1337,27 @@ observer.<span class="f">observe</span>(button);</pre>
       /* ---------- install command ---------- */
       {
         const pm = $('pm');
-        const out = $('installCmd');
         const copy = $('installCopy');
+        const command = () => `${pm.value} geometry-observer`;
+        const show = (label) => {
+          for (const span of copy.children) span.toggleAttribute('data-shown', span.dataset.label === label);
+        };
         let restore;
 
         pm.onchange = () => {
-          out.textContent = `${pm.value} geometry-observer`;
+          const [name, verb] = pm.value.split(' ');
+          $('pmName').textContent = name;
+          $('pmVerb').textContent = verb;
         };
         copy.onclick = async () => {
           try {
-            await navigator.clipboard.writeText(out.textContent);
-            copy.textContent = 'Copied';
+            await navigator.clipboard.writeText(command());
+            show('copied');
           } catch {
-            copy.textContent = 'Failed';
+            show('failed');
           }
           clearTimeout(restore);
-          restore = setTimeout(() => (copy.textContent = 'Copy'), 1400);
+          restore = setTimeout(() => show('copy'), 1400);
         };
       }
 

@@ -141,22 +141,23 @@ The probes live in a single `<div data-geometry-probes>` appended to `<body>`. T
 
 ## Browser support
 
-|                                        | Chromium 125+ | Safari 26+    | Firefox             |
-| -------------------------------------- | ------------- | ------------- | ------------------- |
-| Mechanism                              | anchor probes | anchor probes | sampling fallback   |
-| Position, size and layout-driven moves | yes           | yes           | yes                 |
-| Ancestor `transform`                   | yes           | yes           | yes                 |
-| `hidden` / `detached` state            | yes           | no            | yes                 |
-| Work while the page is idle            | none          | none          | one check per frame |
+|                                        | Chromium 125+ | Safari 26+       | Firefox             |
+| -------------------------------------- | ------------- | ---------------- | ------------------- |
+| Mechanism                              | anchor probes | anchor probes    | sampling fallback   |
+| Position, size and layout-driven moves | yes           | yes              | yes                 |
+| Ancestor `transform`                   | yes           | yes              | yes                 |
+| `detached` state                       | yes           | yes              | yes                 |
+| `hidden` state                         | yes           | from DOM changes | yes                 |
+| Work while the page is idle            | none          | none             | one check per frame |
 
-**Safari** doesn't report `hidden` or `detached`. WebKit only applies the fallback value in `anchor()` when the probe is a direct child of `<body>`, and that fallback is what turns a lost anchor into an event. The library keeps all probes in one wrapper element rather than adding a `<body>` child per observed element, so in Safari you should unobserve elements when you remove them. This looks like a WebKit bug: the spec resolves anchors against the containing block, not the parent element.
+**Safari** doesn't restyle a probe when its anchor is removed or hidden, so the probe keeps its last box and no transition runs. Any other style change on the probe makes it fall back correctly, so this looks like a missing invalidation in WebKit (seen in Safari 26.6 and 27.0). `isSupported()` measures this, and where it happens the observer also watches DOM mutations: a removal wakes every target that is no longer connected, and an attribute change (`style`, `class`, `hidden`, `open`, …) wakes the targets at or under the element that changed. Popovers and dialogs report through their `toggle` event. A target hidden by CSS alone, such as a `:hover` rule, a stylesheet edit or a container query, isn't reported until something else wakes it. The mutation observer costs about 0.2–0.5ms per frame on a page that changes 300 attributes every frame.
 
-**Firefox** accepts all the CSS involved, but anchor-driven changes never start a transition there. `isSupported()` checks this by measuring a real probe rather than trusting `CSS.supports()`, and the observer falls back to sampling.
+**Firefox** accepts all the CSS involved, but doesn't yet support [transitions on anchor-driven changes](https://caniuse.com/wf-anchor-positioning-animations). `isSupported()` checks this by measuring a real probe rather than trusting `CSS.supports()`, and the observer falls back to sampling.
 
 ## Caveats
 
-- **The cost is per reflow, not per frame.** Each probe is a box the browser lays out, so it adds a little to every reflow on the page, including reflows that don't move its target. A rAF loop costs the same every frame instead. The two break even at a low single-digit number of reflows per second. geometry-observer wins on idle pages and on what it catches; under constant layout churn, one shared rAF loop is cheaper.
-- **Don't wait for `detached`.** Safari never sends it. Unobserve elements from the code that removes them.
+- **The cost is per reflow, not per frame.** Each probe is a box the browser lays out, so it adds a little to every reflow on the page, including reflows that don't move its target. A rAF loop costs the same every frame instead. The two break even at about five reflows per second in Chromium, and several times that in Safari. geometry-observer wins on idle pages and on what it catches; under constant layout churn, one shared rAF loop is cheaper.
+- **In Safari, CSS-only hiding goes unreported.** A target hidden by a pseudo-class or a stylesheet change, with no DOM mutation behind it, keeps its last `rendered` entry. Removal is always reported.
 - **Composited transform animations lag by about half a frame.** The rect is exact once the animation stops, but a few pixels behind while it runs.
 - **CSS resets can't turn it off.** The probe's styles are inline and `!important`, so a reset like `* { transition: none !important }` doesn't affect it.
 
