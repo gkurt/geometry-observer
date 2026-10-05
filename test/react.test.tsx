@@ -1,6 +1,7 @@
 import { cleanup, render } from '@testing-library/react';
 import { StrictMode, useRef, useState } from 'react';
 import { afterEach, describe, expect, test } from 'vitest';
+import { isSupported } from '#src/index.ts';
 import type { GeometryCallback, GeometryEntry } from '#src/index.ts';
 import { useGeometryObserver } from '#src/react.ts';
 import { quiet } from './helpers.ts';
@@ -185,7 +186,9 @@ describe('useGeometryObserver', () => {
     const { getByTestId, unmount } = render(<Named p={p} />);
     await quiet();
     const element = getByTestId('named');
-    expect(element.style.getPropertyValue('anchor-name')).not.toBe('');
+    // Only the native path mints an anchor name; the sampling fallback has
+    // nothing to write, and so nothing to restore either.
+    if (isSupported()) expect(element.style.getPropertyValue('anchor-name')).not.toBe('');
 
     // The node keeps its inline style after React drops it, so unobserve's
     // restoration is still inspectable.
