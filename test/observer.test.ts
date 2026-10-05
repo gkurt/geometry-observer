@@ -53,6 +53,22 @@ describe('delivery', () => {
     expect(last.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
   });
 
+  test('reports a transform applied to an ancestor', async () => {
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    host.style.transform = 'translateY(40px)';
+    await quiet();
+
+    const last = rec.drain().at(-1);
+    expect(last?.moved).toBe(true);
+    expect(last!.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
+    host.style.transform = '';
+  });
+
   test('reports an explicit resize', async () => {
     const rec = recorder();
     observer = new GeometryObserver(rec.callback);

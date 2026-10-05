@@ -3,7 +3,7 @@
 Event-based element position and size observation. No polling, no `requestAnimationFrame` loop, no observer re-arming — and no main-thread work at all while nothing moves.
 
 ```bash
-bun add geometry-observer
+npm install geometry-observer
 ```
 
 ## Why
@@ -131,11 +131,24 @@ Whether the native mechanism is available. Where it is not, the observer keeps t
 
 ## Browser support
 
-| Engine        | Mechanism | Notes                                                                                          |
-| ------------- | --------- | ---------------------------------------------------------------------------------------------- |
-| Chromium 125+ | native    | Everything in the table above.                                                                 |
-| Safari 26+    | native    | Anchor positioning ships; teardown (`hidden` / `detached`) is not reported.                    |
-| Firefox       | fallback  | Parses anchor positioning but does not run it; a shared sampling loop keeps the API identical. |
+|                                     | Chromium 125+ | Safari 26+    | Firefox           |
+| ----------------------------------- | ------------- | ------------- | ----------------- |
+| Mechanism                           | anchor probes | anchor probes | sampling fallback |
+| Position, size, reflow-driven moves | yes           | yes           | yes               |
+| Ancestor `transform`                | yes           | yes           | yes               |
+| `hidden` / `detached` state         | yes           | **no**        | yes               |
+| Cost while nothing moves            | zero          | zero          | one frame's work  |
+
+Safari resolves `anchor()` normally but drops the length fallback once the probe
+sits inside any parent element, and that fallback is what turns a lost anchor into
+an event. The probes share one `display: contents` group so a page's `<body>` does
+not gain a child per observed element, which costs Safari teardown detection. The
+spec defines anchor resolution over containing blocks rather than parents, so this
+is a WebKit bug rather than a rule to design around.
+
+Firefox parses every declaration involved and resolves none of it, so the library
+measures a real probe instead of trusting `CSS.supports()` and falls back to one
+shared sampling loop. The API is identical either way; only the idle cost differs.
 
 ## Caveats
 

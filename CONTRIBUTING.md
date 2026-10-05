@@ -17,7 +17,7 @@ bunx playwright install chromium webkit
 Tests run in real browsers, because the whole mechanism is CSS — there is nothing meaningful to assert in a simulated DOM.
 
 - `test/observer.test.ts` — behaviour every engine must have, including where the sampling fallback takes over.
-- `test/anchor.test.ts` — things that only exist when anchor positioning is available, skipped elsewhere via `isSupported()`.
+- `test/anchor.test.ts` — things that only exist when anchor positioning is available, skipped elsewhere via `isSupported()`. Anything both paths owe the caller belongs in `observer.test.ts`, so the fallback has to prove it too.
 - `test/capabilities.ts` — measures whether this engine reports teardown, instead of sniffing for it, so the suite lights up on its own if an engine starts supporting it.
 - `test/react.test.tsx` — the `geometry-observer/react` hook, asserting the memoisation it promises: one stable ref, no re-subscribe on a new callback identity, retune rather than rebuild.
 

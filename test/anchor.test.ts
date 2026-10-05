@@ -109,23 +109,7 @@ anchors('anchor-name handling', () => {
   });
 });
 
-anchors('coverage the sampling fallback cannot match', () => {
-  test('reports a transform applied to an ancestor', async () => {
-    const rec = recorder();
-    observer = new GeometryObserver(rec.callback);
-    observer.observe(box());
-    await quiet();
-    rec.drain();
-
-    host.style.transform = 'translateY(40px)';
-    await quiet();
-
-    const last = rec.drain().at(-1);
-    expect(last?.moved).toBe(true);
-    expect(last!.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
-    host.style.transform = '';
-  });
-
+anchors('coverage that depends on the probe', () => {
   test('survives a blanket transition reset', async () => {
     const reset = document.createElement('style');
     reset.textContent = '*{transition:none !important;animation:none !important}';

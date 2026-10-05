@@ -232,7 +232,7 @@
         background: var(--sunk);
         border: 1px dashed var(--line);
         border-radius: 6px;
-        padding: 16px;
+        padding: 16px 16px 46px;
         min-height: 190px;
       }
       .blk {
@@ -715,8 +715,10 @@
           </div>
           <div class="body">
             <div class="stage" id="stage">
-              <div id="blocks"></div>
-              <div id="target"><b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.</div>
+              <div id="shifted">
+                <div id="blocks"></div>
+                <div id="target"><b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.</div>
+              </div>
               <div class="dim dim-w" id="dimW" hidden><span class="chip">0 px</span></div>
               <div class="dim dim-h" id="dimH" hidden><span class="chip">0 px</span></div>
               <div class="dim-xy" id="dimXY" hidden><span class="chip">x 0, y 0</span></div>
@@ -901,6 +903,7 @@
         } catch {}
 
         const stage = $('stage');
+        const shifted = $('shifted');
         const target = $('target');
         const [lineW, lineH, chipXY] = [$('dimW'), $('dimH'), $('dimXY')];
         const begun = performance.now();
@@ -981,7 +984,10 @@
           target.insertAdjacentText('beforeend', ' More text, which makes the box taller without anyone setting a size.');
         };
         $('shift').onclick = () => {
-          stage.style.transform = stage.style.transform ? '' : 'translate(24px, 12px)';
+          // Transform the wrapper, not the stage. The overlay is positioned
+          // against the stage, so transforming that would carry the labels along
+          // with the target and demonstrate nothing.
+          shifted.style.translate = shifted.style.translate ? '' : '34px 14px';
         };
         $('hide').onclick = () => {
           target.style.display = target.style.display === 'none' ? '' : 'none';
@@ -989,7 +995,7 @@
         $('reset').onclick = () => {
           $('blocks').replaceChildren();
           blocks = 0;
-          stage.style.transform = '';
+          shifted.style.translate = '';
           target.style.display = '';
           target.style.width = '230px';
           target.style.height = '84px';
