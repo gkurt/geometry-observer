@@ -1,0 +1,81 @@
+{
+  "name": "geometry-observer",
+  "version": "0.1.0",
+  "description": "Event-based element position and size observation, built from CSS anchor positioning. No polling, no rAF loop.",
+  "keywords": [
+    "anchor-positioning",
+    "css",
+    "dom",
+    "geometry",
+    "intersectionobserver",
+    "layout",
+    "observer",
+    "position",
+    "resizeobserver"
+  ],
+  "homepage": "https://gkurt.github.io/geometry-observer/",
+  "bugs": {
+    "url": "https://github.com/gkurt/geometry-observer/issues"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Gokhan Kurt",
+    "email": "gokhan@gkurt.com",
+    "url": "https://gkurt.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gkurt/geometry-observer.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "imports": {
+    "#*": "./*"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "source": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "check": "oxlint && oxfmt --check",
+    "fix": "oxlint --fix && oxfmt",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "checks": "bun check && bun typecheck && bun run test && bun run build",
+    "prepare": "husky",
+    "tegami": "bun scripts/tegami.mts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@vitest/browser": "^5.0.3",
+    "@vitest/browser-playwright": "^5.0.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "oxlint-tsgolint": "^7.0.2003",
+    "playwright": "^1.63.0",
+    "tegami": "^1.5.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "lint-staged": {
+    "*": [
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ]
+  }
+}

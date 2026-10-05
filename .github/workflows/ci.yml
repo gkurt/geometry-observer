@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun i
+      - run: bun check
+      - run: bun typecheck
+      - name: Install browsers
+        run: bunx playwright install --with-deps chromium webkit
+      - run: bun run test
+      - run: bun run build

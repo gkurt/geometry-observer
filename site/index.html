@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>geometry-observer</title>
+    <meta
+      name="description"
+      content="Event-based element position and size observation, built from CSS anchor positioning. No polling, no rAF loop."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <style>
+      :root {
+        --ground: #edf1f0;
+        --surface: #fbfcfc;
+        --surface-2: #e2e8e7;
+        --sunk: #e7eceb;
+        --ink: #0f1817;
+        --ink-2: #485855;
+        --ink-3: #77837f;
+        --line: #c9d3d1;
+        --line-2: #dce3e2;
+        --accent: #0b6e63;
+        --accent-2: #0e8a7c;
+        --accent-soft: #d2e7e3;
+        --warn: #a8492a;
+        --display: 'Archivo', system-ui, sans-serif;
+        --body: 'IBM Plex Sans', system-ui, sans-serif;
+        --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #0c1211;
+          --surface: #131a19;
+          --surface-2: #1c2524;
+          --sunk: #0f1615;
+          --ink: #e7edeb;
+          --ink-2: #9fadaa;
+          --ink-3: #74807d;
+          --line: #293433;
+          --line-2: #1f2827;
+          --accent: #44c7b3;
+          --accent-2: #5fd9c6;
+          --accent-soft: #0e302c;
+          --warn: #e08a61;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--ground);
+        color: var(--ink);
+        font-family: var(--body);
+        font-size: 15px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding-inline: 20px;
+        padding-block: 56px 80px;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        margin: 0;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: clamp(2.2rem, 7vw, 3.6rem);
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1;
+      }
+      h2 {
+        font-size: clamp(1.25rem, 3.4vw, 1.6rem);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      h3 {
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+      }
+      :not(pre) > code {
+        background: color-mix(in srgb, var(--ink) 7%, transparent);
+        padding: 0.1em 0.34em;
+        border-radius: 3px;
+      }
+      pre {
+        margin: 0;
+        background: var(--sunk);
+        border: 1px solid var(--line-2);
+        border-radius: 6px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.7;
+      }
+      pre .c {
+        color: var(--ink-3);
+      }
+      pre .k {
+        color: var(--accent);
+      }
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 32px;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .deck {
+        font-size: clamp(1rem, 2.4vw, 1.12rem);
+        color: var(--ink-2);
+        max-width: 60ch;
+      }
+      .deck b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 6px;
+        padding: 7px 12px;
+        font-size: 13px;
+        text-decoration: none;
+        color: var(--ink);
+      }
+      .links a:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      section {
+        margin-top: 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .prose {
+        max-width: 66ch;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: var(--ink-2);
+      }
+      .prose strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 8px 14px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+      }
+      .bar .live {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--accent);
+        text-transform: none;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .body {
+        padding: 16px;
+      }
+      .note {
+        padding: 10px 14px;
+        border-top: 1px solid var(--line-2);
+        background: var(--sunk);
+        font-size: 12.5px;
+        color: var(--ink-2);
+      }
+      .note b {
+        color: var(--ink);
+      }
+      .stage {
+        position: relative;
+        background: var(--sunk);
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        padding: 16px;
+        min-height: 190px;
+      }
+      .blk {
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+        border: 1px solid var(--line-2);
+        border-radius: 4px;
+        padding: 8px 10px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--ink-3);
+        margin-bottom: 8px;
+      }
+      #target {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 12px;
+        width: 230px;
+        height: 84px;
+        resize: both;
+        overflow: auto;
+        min-width: 120px;
+        min-height: 56px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--ink);
+        anchor-name: --demo-target;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 14px;
+        align-items: center;
+      }
+      button {
+        font-family: var(--body);
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 11px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      label.chk {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        cursor: pointer;
+        padding: 6px 10px;
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+      }
+      label.chk input {
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+      .readout {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+        gap: 1px;
+        background: var(--line-2);
+        border: 1px solid var(--line-2);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-top: 14px;
+      }
+      .readout div {
+        background: var(--sunk);
+        padding: 7px 10px;
+        display: flex;
+        flex-direction: column;
+      }
+      .readout .k {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        white-space: nowrap;
+      }
+      .readout .v {
+        font-family: var(--mono);
+        font-size: 14px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .readout .v.hot {
+        color: var(--accent);
+      }
+      .readout .v.cold {
+        color: var(--warn);
+      }
+      #caliper {
+        margin: 0;
+        border: 0;
+        padding: 0;
+        background: none;
+        overflow: visible;
+        pointer-events: none;
+        position: fixed;
+        position-anchor: --demo-target;
+        position-visibility: anchors-visible;
+        top: anchor(top);
+        left: anchor(left);
+        width: anchor-size(width);
+        height: anchor-size(height);
+        transition:
+          top 1ms,
+          left 1ms,
+          width 1ms,
+          height 1ms;
+      }
+      #caliper::before {
+        content: '';
+        position: absolute;
+        inset: -5px;
+        border: 1.5px dashed var(--warn);
+        border-radius: 4px;
+      }
+      #caliper::after {
+        content: 'probe';
+        position: absolute;
+        left: -5px;
+        top: -22px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: var(--warn);
+        background: var(--ground);
+        padding: 0 4px;
+        border-radius: 2px;
+      }
+      .tbl {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 560px;
+        font-size: 13.5px;
+        background: var(--surface);
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 13px;
+        border-bottom: 1px solid var(--line-2);
+      }
+      thead th {
+        background: var(--sunk);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        color: var(--ink-2);
+      }
+      td:first-child {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .y {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .n {
+        color: var(--warn);
+        font-weight: 600;
+      }
+      .unsupported {
+        border: 1px solid var(--warn);
+        background: color-mix(in srgb, var(--warn) 10%, transparent);
+        color: var(--warn);
+        border-radius: 6px;
+        padding: 11px 14px;
+        font-size: 14px;
+      }
+      footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--ink-3);
+      }
+      @media (max-width: 560px) {
+        .wrap {
+          padding-block: 36px 56px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="eyebrow">CSS mechanism · anchor positioning</p>
+        <h1>geometry-observer</h1>
+        <p class="deck">
+          Event-based element position and size observation. The layout engine tells you when something moved —
+          <b>no polling, no <code>requestAnimationFrame</code> loop, no observer re-arming</b>, and no main-thread work at all while nothing
+          changes.
+        </p>
+        <div class="links">
+          <a href="https://github.com/gkurt/geometry-observer">GitHub</a>
+          <a href="https://www.npmjs.com/package/geometry-observer">npm</a>
+          <a href="https://github.com/gkurt/geometry-observer#api">API</a>
+        </div>
+        <pre><span class="c">// install</span>
+bun add geometry-observer</pre>
+        <p id="unsupported" class="unsupported" hidden>
+          This browser doesn't implement CSS anchor positioning, so the demo below is running on the sampling fallback instead. The API is
+          identical; the cost is not.
+        </p>
+      </header>
+
+      <section>
+        <h2>The mechanism</h2>
+        <div class="prose">
+          <p>
+            <code>anchor()</code> and <code>anchor-size()</code> resolve a target's box into <strong>computed lengths</strong> on a hidden
+            probe element. Computed lengths take part in <strong>transitions</strong>. A running transition dispatches a
+            <strong>DOM event</strong>. That's the whole trick.
+          </p>
+        </div>
+        <pre><span class="c">/* the probe — a top-layer element mirroring #target's box */</span>
+#probe {
+  position: fixed;
+  <span class="k">position-anchor</span>: --target;
+  <span class="k">top</span>: anchor(top);   <span class="k">left</span>:   anchor(left);
+  <span class="k">width</span>: anchor-size(width); <span class="k">height</span>: anchor-size(height);
+  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;  <span class="c">/* the tap */</span>
+}</pre>
+      </section>
+
+      <section>
+        <h2>Live</h2>
+        <div class="prose">
+          <p>
+            The dashed frame is a probe, positioned entirely by CSS — no code moves it. The numbers come from observer callbacks. Resize the
+            box by its corner, or change the layout around it.
+          </p>
+        </div>
+        <div class="panel">
+          <div class="bar">
+            <span>GeometryObserver</span><span class="live"><span class="dot"></span><span id="mode">every change</span></span>
+          </div>
+          <div class="body">
+            <div class="stage" id="stage">
+              <div id="blocks"></div>
+              <div id="target"><b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.</div>
+            </div>
+            <div class="controls">
+              <button id="insert">Insert block above</button>
+              <button id="remove">Remove block</button>
+              <button id="text">Add text inside</button>
+              <button id="shift">Shift ancestor</button>
+              <button id="hide">Hide / show</button>
+              <button id="reset">Reset</button>
+              <label class="chk"><input type="checkbox" id="settle" /> settle 250ms</label>
+            </div>
+            <div class="readout">
+              <div><span class="k">x</span><span class="v" id="rx">–</span></div>
+              <div><span class="k">y</span><span class="v" id="ry">–</span></div>
+              <div><span class="k">width</span><span class="v" id="rw">–</span></div>
+              <div><span class="k">height</span><span class="v" id="rh">–</span></div>
+              <div><span class="k">state</span><span class="v hot" id="rs">–</span></div>
+              <div><span class="k">events</span><span class="v hot" id="rev">0</span></div>
+              <div><span class="k">rAF samples avoided</span><span class="v cold" id="rav">0</span></div>
+            </div>
+          </div>
+          <p class="note">
+            Scroll the page and the numbers hold steady — the rect stays correct without firing anything. <b>Idle wakeups: zero.</b> Tick
+            <b>settle</b> and insert a block: one event instead of one per frame, because the delay is <code>transition-delay</code>, not a
+            timer.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>What fires</h2>
+        <div class="tbl">
+          <table>
+            <thead>
+              <tr>
+                <th>Change</th>
+                <th>geometry-observer</th>
+                <th>ResizeObserver</th>
+                <th>IntersectionObserver</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Element resized</td>
+                <td class="y">event</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+              </tr>
+              <tr>
+                <td>Content changed its size</td>
+                <td class="y">event</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+              </tr>
+              <tr>
+                <td>A sibling above it grew</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+                <td class="n">re-arm only</td>
+              </tr>
+              <tr>
+                <td>A node was inserted above it</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+                <td class="n">re-arm only</td>
+              </tr>
+              <tr>
+                <td>An ancestor's padding changed</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+                <td class="n">re-arm only</td>
+              </tr>
+              <tr>
+                <td>An ancestor <code>transform</code> changed</td>
+                <td class="y">event</td>
+                <td class="n">—</td>
+                <td class="n">—</td>
+              </tr>
+              <tr>
+                <td>Scrolled</td>
+                <td class="y">routed <code>scroll</code></td>
+                <td class="n">—</td>
+                <td class="y">event</td>
+              </tr>
+              <tr>
+                <td>Hidden with <code>display: none</code></td>
+                <td class="y"><code>state: hidden</code></td>
+                <td>0×0, ambiguous</td>
+                <td class="n">—</td>
+              </tr>
+              <tr>
+                <td>Detached</td>
+                <td class="y"><code>state: detached</code></td>
+                <td>0×0, ambiguous</td>
+                <td class="n">—</td>
+              </tr>
+              <tr>
+                <td>Cost while nothing moves</td>
+                <td class="y">zero</td>
+                <td class="y">zero</td>
+                <td class="y">zero</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="prose">
+          <p>
+            The middle rows are the point. “A sibling above me grew, so I moved” is the most common way an element changes position, and it
+            is exactly the case no observer reports.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Honest about the cost</h2>
+        <div class="prose">
+          <p>
+            Each probe is a real box the engine lays out, so probes add time to <em>every</em> reflow — including ones in which nothing they
+            watch moved. A sampler instead pays on every frame, moving or not. The two meet at a low single-digit number of reflows per
+            second.
+          </p>
+          <p>
+            So this is an <strong>idle-cost and coverage win, not a throughput win</strong>. For a page that mostly sits still — tooltips,
+            popovers, connector lines, rulers, drag affordances — probes cost nothing and a sampler burns milliseconds every second forever.
+            Under sustained layout churn, a single shared sampler is cheaper. <code>track: 'size'</code> roughly halves the probe's cost
+            when you only need one axis.
+          </p>
+        </div>
+      </section>
+
+      <footer>
+        MIT © <a href="https://gkurt.com">Gokhan Kurt</a> · built from CSS anchor positioning, <code>@property</code>, container queries and
+        top-layer popovers
+      </footer>
+    </div>
+
+    <div id="caliper" popover="manual"></div>
+
+    <script type="module">
+      import { GeometryObserver, isSupported } from './geometry-observer.js';
+
+      const $ = (id) => document.getElementById(id);
+      if (!isSupported()) $('unsupported').hidden = false;
+      try {
+        $('caliper').showPopover();
+      } catch {}
+
+      const target = $('target');
+      const start = performance.now();
+      let events = 0,
+        blocks = 0,
+        hz = 60;
+
+      (function measureHz() {
+        const stamps = [];
+        let n = 0;
+        const step = (t) => {
+          stamps.push(t);
+          if (++n < 8) requestAnimationFrame(step);
+          else {
+            const d = (stamps.at(-1) - stamps[0]) / (stamps.length - 1);
+            if (d > 1) hz = Math.min(240, Math.round(1000 / d));
+          }
+        };
+        requestAnimationFrame(step);
+      })();
+
+      const paint = (entry) => {
+        $('rx').textContent = Math.round(entry.rect.x);
+        $('ry').textContent = Math.round(entry.rect.y);
+        $('rw').textContent = Math.round(entry.rect.width);
+        $('rh').textContent = Math.round(entry.rect.height);
+        $('rs').textContent = entry.state;
+        $('rev').textContent = events.toLocaleString();
+      };
+      const tickScoreboard = () => {
+        $('rav').textContent = Math.max(0, Math.round(((performance.now() - start) / 1000) * hz) - events).toLocaleString();
+      };
+
+      const observer = new GeometryObserver((entries) => {
+        events += entries.length;
+        paint(entries.at(-1));
+        tickScoreboard();
+      });
+      observer.observe(target);
+      setInterval(tickScoreboard, 1000);
+
+      $('insert').onclick = () => {
+        const el = document.createElement('div');
+        el.className = 'blk';
+        el.textContent = `block ${++blocks} — pushing the target down`;
+        $('blocks').append(el);
+      };
+      $('remove').onclick = () => {
+        if ($('blocks').lastElementChild) {
+          $('blocks').lastElementChild.remove();
+          blocks--;
+        }
+      };
+      $('text').onclick = () =>
+        target.insertAdjacentText('beforeend', ' More text, which makes the box taller without anyone setting a size.');
+      $('shift').onclick = () => {
+        const stage = $('stage');
+        stage.style.transform = stage.style.transform ? '' : 'translate(24px, 12px)';
+      };
+      $('hide').onclick = () => {
+        target.style.display = target.style.display === 'none' ? '' : 'none';
+      };
+      $('reset').onclick = () => {
+        $('blocks').innerHTML = '';
+        blocks = 0;
+        $('stage').style.transform = '';
+        target.style.display = '';
+        target.style.width = '230px';
+        target.style.height = '84px';
+        target.innerHTML = '<b>Observed target.</b> Drag my corner to resize, or push me around with the buttons.';
+      };
+      $('settle').onchange = (e) => {
+        observer.reconfigure({ settle: e.target.checked ? 250 : 0 });
+        $('mode').textContent = e.target.checked ? 'settle 250ms' : 'every change';
+      };
+    </script>
+  </body>
+</html>
