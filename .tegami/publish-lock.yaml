@@ -1,0 +1,11 @@
+core:changelogs:
+  - content: "---\npackages:\n  geometry-observer:\n    type: minor\n---\n\n### First release, as an experiment\n\n`GeometryObserver`, `observeGeometry()` and the `geometry-observer/react` hook report when an element moves or resizes for any reason, with no work while the page is idle. Once layout changes, it costs more than a rAF loop or Floating UI; see the README's Performance section.\n"
+    filename: initial-release.md
+    v: 0.0.0
+core:packages:
+  - changelogIds:
+      - initial-release.md
+    id: npm:geometry-observer
+    updated: true
+npm:packages:
+  - id: npm:geometry-observer

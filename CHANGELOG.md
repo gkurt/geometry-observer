@@ -1,7 +1,4 @@
----
-packages:
-  'geometry-observer': minor
----
+## geometry-observer@0.2.0
 
 ### First release, as an experiment
 
