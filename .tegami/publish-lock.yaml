@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  geometry-observer:\n    type: minor\n---\n\n### First release, as an experiment\n\n`GeometryObserver`, `observeGeometry()` and the `geometry-observer/react` hook report when an element moves or resizes for any reason, with no work while the page is idle. Once layout changes, it costs more than a rAF loop or Floating UI; see the README's Performance section.\n"
-    filename: initial-release.md
+  - content: "---\npackages:\n  geometry-observer:\n    type: minor\n---\n\n### Reports layout changes in the same frame, through ResizeObserver probes\n\nProbes now encode the target's position in their size and report through a `ResizeObserver` instead of a transition. Under constant motion this is about 3× cheaper in Chromium, reports arrive in the frame of the change, and Firefox runs natively instead of checking every frame. `track: 'size'` needs no probe at all. `settle` is now a timer, and `batch` only affects scrolls, viewport resizes and toggles.\n"
+    filename: resize-observer-probes.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - initial-release.md
+      - resize-observer-probes.md
     id: npm:geometry-observer
     updated: true
 npm:packages:
