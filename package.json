@@ -42,6 +42,11 @@
       "import": "./dist/index.js",
       "source": "./src/index.ts"
     },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "source": "./src/react.ts"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -58,7 +63,10 @@
     "tegami": "bun scripts/tegami.mts"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
     "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitest/browser": "^5.0.3",
     "@vitest/browser-playwright": "^5.0.3",
     "husky": "^9.1.7",
@@ -67,10 +75,20 @@
     "oxlint": "^1.87.0",
     "oxlint-tsgolint": "^7.0.2003",
     "playwright": "^1.63.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tegami": "^1.5.0",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "lint-staged": {
     "*": [

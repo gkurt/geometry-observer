@@ -29,6 +29,8 @@ mechanical style rules. Fix the code; don't disable rules.
 - `src/observer.ts` — the class, plus the page-wide listener registry and the
   sampling fallback. One set of listeners serves every observer instance.
 - `src/observe-geometry.ts` — one-target convenience wrapper.
+- `src/react.ts` — the `geometry-observer/react` entry point. React is an optional
+  peer dependency; nothing else in the package imports it.
 - `test/` — Vitest browser tests. See CONTRIBUTING.md for the split.
 
 ## Architecture

@@ -41,6 +41,35 @@ import { observeGeometry } from 'geometry-observer';
 const stop = observeGeometry(element, ([entry]) => place(entry.rect));
 ```
 
+### React
+
+```tsx
+import { useGeometryObserver } from 'geometry-observer/react';
+
+function Tooltip() {
+  const ref = useGeometryObserver<HTMLButtonElement>(([entry]) => place(entry.rect));
+  return <button ref={ref}>Hover me</button>;
+}
+```
+
+The ref callback is stable for the life of the component, and the geometry
+callback is read through a ref — so an inline arrow function every render is free
+and never re-subscribes. Changing `track`, `settle` or `batch` retunes the live
+observer instead of rebuilding it; only a new element or a new `anchorName`
+re-subscribes. `react` is an optional peer dependency, so the main entry point
+does not pull it in.
+
+To share the element with a ref of your own, call both:
+
+```tsx
+<div
+  ref={(node) => {
+    mine.current = node;
+    geometry(node);
+  }}
+/>
+```
+
 ## What fires
 
 | Change                            | geometry-observer        | ResizeObserver   | IntersectionObserver |

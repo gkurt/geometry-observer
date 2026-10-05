@@ -17,7 +17,7 @@ if (process.env.CI) engines.push('firefox');
 
 export default defineConfig({
   test: {
-    include: ['test/**/*.test.ts'],
+    include: ['test/**/*.test.{ts,tsx}'],
     browser: {
       enabled: true,
       headless: true,
