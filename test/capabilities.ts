@@ -6,9 +6,13 @@ import { isSupported } from '#src/index.ts';
  * Losing an anchor only raises an event because `anchor()` is given a length
  * fallback — without one the property goes invalid at computed-value time and
  * resolves to `auto`, and a length does not interpolate to `auto`. Chromium
- * applies that fallback; WebKit 26 does not once the probe sits inside any
- * wrapper element, and never does on detach. Measured here rather than sniffed,
- * so the suite lights up on its own if that changes.
+ * applies that fallback. WebKit 26 applies it only when the probe is a direct
+ * child of `<body>`; any element parent silences it, regardless of wrapper depth,
+ * tree position, or whether the probe is in the top layer. The spec ties anchor
+ * resolution to containing blocks, not parents, and a `position: fixed` probe's
+ * containing block is always the viewport — so this is a WebKit bug, not a rule we
+ * can design around. Measured here rather than sniffed, so the suite lights up on
+ * its own if it is fixed.
  *
  * Irrelevant where anchor positioning is missing altogether: the sampling
  * fallback sees every state change by construction.

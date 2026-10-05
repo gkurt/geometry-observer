@@ -17,6 +17,6 @@ jobs:
       - run: bun check
       - run: bun typecheck
       - name: Install browsers
-        run: bunx playwright install --with-deps chromium webkit
+        run: bunx playwright install --with-deps chromium webkit firefox
       - run: bun run test
       - run: bun run build

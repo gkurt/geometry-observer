@@ -20,7 +20,7 @@ Tests run in real browsers, because the whole mechanism is CSS — there is noth
 - `test/anchor.test.ts` — things that only exist when anchor positioning is available, skipped elsewhere via `isSupported()`.
 - `test/capabilities.ts` — measures whether this engine reports teardown, instead of sniffing for it, so the suite lights up on its own if an engine starts supporting it.
 
-Firefox is currently disabled in `vitest.config.ts`; see the comment there.
+Firefox runs on CI only — Playwright's Firefox build cannot launch on macOS 27. See the comment in `vitest.config.ts`.
 
 ## Changes
 

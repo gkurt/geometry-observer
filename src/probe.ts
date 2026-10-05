@@ -71,6 +71,17 @@ export function transitionFor(track: Track, settle: number): string {
  * layout nor become a containing block; and because the probes sit in the top
  * layer, even a page rule forcing a transform onto the group leaves them anchored
  * correctly.
+ *
+ * The one cost is in WebKit 26, which applies an `anchor()` length fallback only
+ * when the probe is a direct child of `<body>` — any element parent silences it,
+ * whatever the depth or tree position, in the top layer or out of it. That
+ * fallback is what turns a lost anchor into an event, so grouping is why WebKit
+ * reports no `hidden` / `detached` state. Nothing in the spec ties anchor
+ * resolution to the parent element (it is defined over containing blocks, and a
+ * `position: fixed` probe's containing block is always the viewport), so this is a
+ * WebKit bug. Keeping the group is the right trade: teardown is documented as
+ * best-effort on every engine, whereas a probe per observed element directly under
+ * `<body>` would reshape `body.children` for every page using the library.
  */
 let group: HTMLElement | null = null;
 

@@ -101,19 +101,19 @@ Whether the native mechanism is available. Where it is not, the observer keeps t
 
 ## Browser support
 
-| Engine        | Mechanism | Notes                                                                           |
-| ------------- | --------- | ------------------------------------------------------------------------------- |
-| Chromium 125+ | native    | Everything in the table above.                                                  |
-| Safari 26+    | native    | Anchor positioning ships, but teardown (`hidden` / `detached`) is not reported. |
-| Firefox       | fallback  | No anchor positioning yet; a shared sampling loop keeps the API identical.      |
+| Engine        | Mechanism | Notes                                                                       |
+| ------------- | --------- | --------------------------------------------------------------------------- |
+| Chromium 125+ | native    | Everything in the table above.                                              |
+| Safari 26+    | native    | Anchor positioning ships; teardown (`hidden` / `detached`) is not reported. |
+| Firefox       | fallback  | No anchor positioning yet; a shared sampling loop keeps the API identical.  |
 
 ## Caveats
 
 - **Cost is per reflow, not per frame.** Each probe is a real box the engine lays out, so probes add time to every reflow — including ones in which nothing they watch moved. A sampler instead pays on every frame, moving or not. The two meet at a low single-digit number of reflows per second, so this is an idle-cost and coverage win rather than a throughput one. Under sustained layout churn, a shared sampler is cheaper.
-- **Teardown is best-effort.** Unobserve from whatever already knows the element is going away; do not wait for a `detached` entry.
+- **Teardown is best-effort.** Unobserve from whatever already knows the element is going away; do not wait for a `detached` entry. WebKit never reports it: it drops the `anchor()` fallback that makes a lost anchor observable unless the probe is a direct child of `<body>`, which would mean one body child per observed element.
 - **Composited transforms trail by about half a frame.** Exact at rest, a few pixels behind mid-flight.
 - **Don't let a CSS reset kill it.** The probe's declarations are written with `!important` precisely because a blanket `* { transition: none !important }` would otherwise switch the whole thing off silently. Probes you hand-write in a stylesheet have no such protection.
 
 ## License
 
-MIT © [Gokhan Kurt](https://gkurt.com)
+MIT © [Gokhan Kurt](https://x.com/gkurttech)

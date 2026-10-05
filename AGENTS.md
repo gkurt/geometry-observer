@@ -5,7 +5,7 @@ This file provides guidance to AI agents when working with code in this reposito
 ## Commands
 
 ```bash
-bun run test       # Vitest browser mode (chromium + webkit)
+bun run test       # Vitest browser mode (chromium + webkit; firefox on CI)
 bun typecheck      # Type check (TypeScript 7, native tsc)
 bun run lint       # Lint
 bun run format     # Format
