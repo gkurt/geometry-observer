@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { GeometryObserver, isSupported, observeGeometry } from '#src/index.ts';
 import { REPORTS_CSS_ONLY_TEARDOWN } from './capabilities.ts';
 import { mount, quiet, recorder } from './helpers.ts';
@@ -157,6 +158,37 @@ describe('delivery', () => {
     const last = rec.drain().at(-1);
     expect(last!.rect.top).toBeCloseTo(inner.getBoundingClientRect().top, 1);
     dialog.close();
+  });
+
+  test('reports moves inside an element made fullscreen after observing began', async ({ skip }) => {
+    host.insertAdjacentHTML(
+      'beforeend',
+      '<div id="fs" style="background:white"><div id="gap" style="height:10px"></div><div id="inner" style="width:40px;height:10px"></div></div><button id="go">go</button>',
+    );
+    const fullscreen = host.querySelector<HTMLElement>('#fs')!;
+    const inner = host.querySelector<HTMLElement>('#inner')!;
+    const button = host.querySelector<HTMLElement>('#go')!;
+    let refused = false;
+    button.addEventListener('click', () => {
+      fullscreen.requestFullscreen().catch(() => (refused = true));
+    });
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    observer.observe(inner);
+    await quiet();
+
+    await userEvent.click(button);
+    await quiet();
+    if (refused) skip('this browser refused to go fullscreen');
+    expect(document.fullscreenElement).toBe(fullscreen);
+    rec.drain();
+
+    host.querySelector<HTMLElement>('#gap')!.style.height = '50px';
+    await quiet();
+    const last = rec.drain().findLast((entry) => entry.target === inner);
+    expect(last!.rect.top).toBeCloseTo(inner.getBoundingClientRect().top, 1);
+    await document.exitFullscreen();
   });
 
   test('reports an exact rect after a nested scroller scrolls', async () => {

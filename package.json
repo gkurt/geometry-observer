@@ -28,7 +28,8 @@
     "url": "git+https://github.com/gkurt/geometry-observer.git"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "type": "module",
   "sideEffects": false,

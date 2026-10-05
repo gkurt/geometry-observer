@@ -58,7 +58,9 @@ try {
     [...shipped].some((path) => /^dist\/.*\.js$/.test(path) && !['dist/index.js', 'dist/react.js'].includes(path)),
     'ships the shared chunk',
   );
-  check(![...shipped].some((path) => path.startsWith('src/') || path.startsWith('test/')), 'ships no sources or tests');
+  // The sources back the `source` export condition and the source maps.
+  for (const required of ['src/index.ts', 'src/react.ts']) check(shipped.has(required), `ships ${required}`);
+  check(![...shipped].some((path) => path.startsWith('test/')), 'ships no tests');
 
   // Every path the exports map points at has to be in the tarball. A typo in a
   // `types` path otherwise goes unnoticed, because TypeScript quietly falls back
@@ -68,10 +70,8 @@ try {
   );
   for (const [subpath, target] of Object.entries(manifest.exports)) {
     const targets = typeof target === 'string' ? { default: target } : target;
-    for (const [condition, file] of Object.entries(targets)) {
-      if (condition === 'source') continue; // deliberately points at unshipped src
+    for (const [condition, file] of Object.entries(targets))
       check(shipped.has(file.replace(/^\.\//, '')), `exports ${subpath} ${condition} points at a shipped file`);
-    }
   }
 
   console.log('\ninstalling into a throwaway project');

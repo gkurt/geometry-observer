@@ -48,6 +48,12 @@ function onToggle(event: Event): void {
   for (const observer of live) observer.wakeWithin(event.target);
 }
 
+/** A fullscreen element joins the top layer too, but fires no `toggle`. */
+function onFullscreenChange(): void {
+  if (document.fullscreenElement !== null) raiseProbeGroup(document.fullscreenElement);
+  for (const observer of live) observer.wakeAll();
+}
+
 /**
  * WebKit doesn't restyle a probe when its anchor is removed or hidden, so no
  * transition reports it (see `missesAnchorLoss()`). There, the DOM changes that
@@ -70,6 +76,7 @@ function enlist(observer: GeometryObserver): void {
     addEventListener('scroll', onScroll, { capture: true, passive: true });
     addEventListener('resize', onViewportChange, { passive: true });
     addEventListener('toggle', onToggle, { capture: true, passive: true });
+    document.addEventListener('fullscreenchange', onFullscreenChange, { passive: true });
     visualViewport?.addEventListener('resize', onViewportChange, { passive: true });
     visualViewport?.addEventListener('scroll', onViewportChange, { passive: true });
     if (missesAnchorLoss()) {
@@ -96,6 +103,7 @@ function delist(observer: GeometryObserver): void {
   visualViewport?.removeEventListener('resize', onViewportChange);
   visualViewport?.removeEventListener('scroll', onViewportChange);
   removeEventListener('toggle', onToggle, { capture: true });
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
   mutations?.disconnect();
   mutations = null;
   if (samplerTick !== 0) cancelAnimationFrame(samplerTick);

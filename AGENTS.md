@@ -63,8 +63,8 @@ defined:
   the group, not each probe: per-probe `showPopover()` made `observe()`
   quadratic in Chromium (1,000 targets took over 4s) and made each probe's
   share of a reflow up to twice as large. The group is re-raised whenever a
-  popover or dialog opens, since an anchor in a later top-layer element can't be
-  resolved.
+  popover, dialog or fullscreen element opens, since an anchor in a later
+  top-layer element can't be resolved.
 - **Length fallbacks** in `anchor(top, …)` make teardown observable. Without one,
   a lost anchor resolves to `auto`, and a length doesn't transition to `auto`.
 - **`!important` on every probe declaration**. Otherwise a reset like

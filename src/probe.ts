@@ -113,7 +113,8 @@ function probeGroup(): HTMLElement {
 
 /**
  * An anchor inside a top-layer element shown after the group can't be resolved,
- * so whenever something else enters the top layer, the group goes back on top.
+ * so whenever something else enters the top layer (a popover, a dialog or a
+ * fullscreen element), the group goes back on top.
  */
 export function raiseProbeGroup(opened: EventTarget | null): void {
   if (group === null || opened === group || !group.isConnected) return;

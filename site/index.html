@@ -257,7 +257,7 @@
         border: 1px solid var(--line);
         border-radius: 7px;
         background: var(--surface);
-        padding: 4px 4px 4px 12px;
+        padding: 4px 4px 4px 8px;
         min-height: 42px;
         max-width: 100%;
       }
@@ -271,27 +271,25 @@
         min-width: 0;
       }
       /* A transparent native select over the caret: clicking opens the real
-         dropdown, while the package manager name stays plain, selectable text. */
+         dropdown, while the command next to it stays plain, selectable text. */
       .pm-pick {
         position: relative;
         display: inline-grid;
         place-items: center;
+        flex: none;
         width: 14px;
-        height: 18px;
-        margin-left: 1px;
-        vertical-align: -4px;
+        height: 14px;
+        /* Centred on the lowercase letters rather than the line box. */
+        translate: 0 1px;
         border-radius: 3px;
         color: var(--ink-3);
         user-select: none;
         -webkit-user-select: none;
       }
-      .pm-pick:hover {
+      .pm-pick:hover,
+      .pm-pick:has(select:focus-visible) {
         color: var(--accent);
         background: var(--sunk);
-      }
-      .pm-pick:has(select:focus-visible) {
-        outline: 2px solid var(--accent);
-        outline-offset: 1px;
       }
       .pm-pick select {
         position: absolute;
@@ -980,20 +978,18 @@
           </p>
           <div class="actions">
             <div class="install">
-              <code
-                ><span id="pmName">npm</span
-                ><span class="pm-pick"
-                  ><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-                    <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" /></svg
-                  ><select id="pm" aria-label="Package manager">
-                    <option value="npm install">npm</option>
-                    <option value="pnpm add">pnpm</option>
-                    <option value="yarn add">yarn</option>
-                    <option value="bun add">bun</option>
-                  </select></span
-                >
-                <span id="pmVerb">install</span> geometry-observer</code
-              >
+              <span class="pm-pick">
+                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                  <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <select id="pm" aria-label="Package manager">
+                  <option value="npm install">npm</option>
+                  <option value="pnpm add">pnpm</option>
+                  <option value="yarn add">yarn</option>
+                  <option value="bun add">bun</option>
+                </select>
+              </span>
+              <code id="installCmd"><span id="pmName">npm</span> <span id="pmVerb">install</span> geometry-observer</code>
               <button type="button" class="copy" id="installCopy">
                 <span data-label="copy" data-shown>Copy</span><span data-label="copied">Copied</span><span data-label="failed">Failed</span>
               </button>
@@ -1343,6 +1339,10 @@ observer.<span class="f">observe</span>(button);</pre>
           for (const span of copy.children) span.toggleAttribute('data-shown', span.dataset.label === label);
         };
         let restore;
+
+        // A double-click selects the whole command rather than one word of it.
+        const code = $('installCmd');
+        code.addEventListener('dblclick', () => getSelection()?.selectAllChildren(code));
 
         pm.onchange = () => {
           const [name, verb] = pm.value.split(' ');
