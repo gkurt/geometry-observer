@@ -655,6 +655,47 @@
         font-size: 10.5px;
         color: var(--accent);
       }
+      /* A popover, so the tooltip lives in the top layer and is not clipped by the
+         scene's own overflow. Every UA popover default has to be undone: inset 0,
+         auto margins, a solid border and padding would otherwise place it dead
+         centre on screen. */
+      .tip {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        border: 0;
+        padding: 6px 9px;
+        width: max-content;
+        background: var(--ink);
+        color: var(--ground);
+        border-radius: 5px;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        pointer-events: none;
+        overflow: visible;
+        translate: -50% calc(-100% - 11px);
+        box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--ink) 70%, transparent);
+      }
+      .tip.below {
+        translate: -50% 11px;
+      }
+      .tip::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -3px;
+        width: 7px;
+        height: 7px;
+        background: var(--ink);
+        rotate: 45deg;
+        translate: -50% 0;
+      }
+      .tip.below::after {
+        bottom: auto;
+        top: -3px;
+      }
       .node.dragging {
         cursor: grabbing;
         border-color: var(--accent);
@@ -745,7 +786,8 @@
         <h2>A node graph</h2>
         <p class="lede">
           Drag a node, or resize it by its corner. Nodes shove each other aside so no two ever overlap, and the edges stay attached through
-          the whole cascade. Every rect behind that comes from a callback, and when the graph is still nothing runs at all.
+          the whole cascade. Hover one for a tooltip: it rides in the top layer, so it spills past the edge of the scene instead of being
+          clipped by it. Every rect behind all of this arrives in a callback, and when the graph is still nothing runs at all.
         </p>
         <div class="panel">
           <div class="bar">
@@ -1028,6 +1070,7 @@
         ];
         let events = 0;
         let dragging = null;
+        let hovered = null;
 
         const observer = new GeometryObserver((entries) => {
           events += entries.length;
@@ -1045,7 +1088,23 @@
           separate();
           place();
           draw();
+          positionTip();
         });
+
+        /**
+         * The tooltip is placed from the rect the observer just reported, which is
+         * why it keeps up while a node is dragged, pushed or resized, and why it
+         * works the same on engines running the sampling fallback.
+         */
+        function positionTip() {
+          if (hovered === null) return;
+          const r = hovered.el.getBoundingClientRect();
+          const tip = hovered.tip;
+          tip.textContent = `${hovered.label}  ${Math.round(r.width)} x ${Math.round(r.height)}`;
+          tip.classList.toggle('below', r.top < 56);
+          tip.style.left = `${Math.round(r.left + r.width / 2)}px`;
+          tip.style.top = `${Math.round(tip.classList.contains('below') ? r.bottom : r.top)}px`;
+        }
 
         for (const node of nodes) {
           const el = document.createElement('div');
@@ -1054,6 +1113,26 @@
           el.style.cssText = `left:${node.x}px; top:${node.y}px`;
           graph.append(el);
           node.el = el;
+
+          const tip = document.createElement('div');
+          tip.className = 'tip';
+          tip.setAttribute('popover', 'manual');
+          document.body.append(tip);
+          node.tip = tip;
+
+          el.addEventListener('pointerenter', () => {
+            hovered = node;
+            try {
+              tip.showPopover();
+            } catch {}
+            positionTip();
+          });
+          el.addEventListener('pointerleave', () => {
+            if (hovered === node) hovered = null;
+            try {
+              tip.hidePopover();
+            } catch {}
+          });
           const box = el.getBoundingClientRect();
           node.w = box.width;
           node.h = box.height;
