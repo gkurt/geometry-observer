@@ -59,6 +59,7 @@
     "fix": "oxlint --fix && oxfmt",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "bun scripts/smoke.mts",
     "checks": "bun check && bun typecheck && bun run test && bun run build",
     "prepare": "husky",
     "tegami": "bun scripts/tegami.mts"

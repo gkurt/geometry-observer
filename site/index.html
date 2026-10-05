@@ -681,6 +681,12 @@
       .tip.below {
         translate: -50% 11px;
       }
+      .tip.pinned {
+        background: var(--accent);
+      }
+      .tip.pinned::after {
+        background: var(--accent);
+      }
       .tip::after {
         content: '';
         position: absolute;
@@ -695,6 +701,9 @@
       .tip.below::after {
         bottom: auto;
         top: -3px;
+      }
+      .node.pinned {
+        border-color: var(--accent);
       }
       .node.dragging {
         cursor: grabbing;
@@ -786,8 +795,9 @@
         <h2>A node graph</h2>
         <p class="lede">
           Drag a node, or resize it by its corner. Nodes shove each other aside so no two ever overlap, and the edges stay attached through
-          the whole cascade. Hover one for a tooltip: it rides in the top layer, so it spills past the edge of the scene instead of being
-          clipped by it. Every rect behind all of this arrives in a callback, and when the graph is still nothing runs at all.
+          the whole cascade. Hover one for a tooltip, or click to pin it open and hover another. They ride in the top layer, so they spill
+          past the edge of the scene instead of being clipped by it. Every rect behind all of this arrives in a callback, and when the graph
+          is still nothing runs at all.
         </p>
         <div class="panel">
           <div class="bar">
@@ -1070,7 +1080,7 @@
         ];
         let events = 0;
         let dragging = null;
-        let hovered = null;
+        const open = new Set();
 
         const observer = new GeometryObserver((entries) => {
           events += entries.length;
@@ -1088,22 +1098,41 @@
           separate();
           place();
           draw();
-          positionTip();
+          positionTips();
         });
 
         /**
-         * The tooltip is placed from the rect the observer just reported, which is
-         * why it keeps up while a node is dragged, pushed or resized, and why it
-         * works the same on engines running the sampling fallback.
+         * Tooltips are placed from the rects the observer just reported, which is
+         * why they keep up while a node is dragged, pushed, resized or scrolled,
+         * and why they work the same on engines running the sampling fallback.
+         * Pinning several is the interesting case: they all track at once.
          */
-        function positionTip() {
-          if (hovered === null) return;
-          const r = hovered.el.getBoundingClientRect();
-          const tip = hovered.tip;
-          tip.textContent = `${hovered.label}  ${Math.round(r.width)} x ${Math.round(r.height)}`;
-          tip.classList.toggle('below', r.top < 56);
-          tip.style.left = `${Math.round(r.left + r.width / 2)}px`;
-          tip.style.top = `${Math.round(tip.classList.contains('below') ? r.bottom : r.top)}px`;
+        function positionTips() {
+          for (const node of open) {
+            const r = node.el.getBoundingClientRect();
+            const tip = node.tip;
+            tip.textContent = `${node.label}  ${Math.round(r.width)} x ${Math.round(r.height)}`;
+            const below = r.top < 56;
+            tip.classList.toggle('below', below);
+            tip.classList.toggle('pinned', node.pinned === true);
+            tip.style.left = `${Math.round(r.left + r.width / 2)}px`;
+            tip.style.top = `${Math.round(below ? r.bottom : r.top)}px`;
+          }
+        }
+
+        function showTip(node) {
+          open.add(node);
+          try {
+            node.tip.showPopover();
+          } catch {}
+          positionTips();
+        }
+
+        function hideTip(node) {
+          open.delete(node);
+          try {
+            node.tip.hidePopover();
+          } catch {}
         }
 
         for (const node of nodes) {
@@ -1120,18 +1149,9 @@
           document.body.append(tip);
           node.tip = tip;
 
-          el.addEventListener('pointerenter', () => {
-            hovered = node;
-            try {
-              tip.showPopover();
-            } catch {}
-            positionTip();
-          });
+          el.addEventListener('pointerenter', () => showTip(node));
           el.addEventListener('pointerleave', () => {
-            if (hovered === node) hovered = null;
-            try {
-              tip.hidePopover();
-            } catch {}
+            if (node.pinned !== true) hideTip(node);
           });
           const box = el.getBoundingClientRect();
           node.w = box.width;
@@ -1140,8 +1160,11 @@
 
           el.addEventListener('pointerdown', (event) => {
             const r = el.getBoundingClientRect();
+            node.downX = event.clientX;
+            node.downY = event.clientY;
             // Leave the bottom-right corner to the native resize handle.
-            if (event.clientX > r.right - 18 && event.clientY > r.bottom - 18) return;
+            node.fromHandle = event.clientX > r.right - 18 && event.clientY > r.bottom - 18;
+            if (node.fromHandle) return;
             dragging = node;
             node.grabX = event.clientX - r.x;
             node.grabY = event.clientY - r.y;
@@ -1169,7 +1192,16 @@
             dragging = null;
             el.classList.remove('dragging');
           };
-          el.addEventListener('pointerup', drop);
+          el.addEventListener('pointerup', (event) => {
+            const travelled = Math.abs(event.clientX - node.downX) + Math.abs(event.clientY - node.downY);
+            if (node.fromHandle !== true && travelled < 5) {
+              node.pinned = node.pinned !== true;
+              el.classList.toggle('pinned', node.pinned);
+              // Unpinning leaves the tooltip up; pointerleave takes it away.
+              showTip(node);
+            }
+            drop();
+          });
           el.addEventListener('pointercancel', drop);
         }
 

@@ -20,3 +20,16 @@ jobs:
         run: bunx playwright install --with-deps chromium webkit firefox
       - run: bun run test
       - run: bun run build
+
+  # The suite imports #src/*, so nothing in it exercises the files list, the
+  # exports map or the built dist. This installs the tarball and uses it.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: bun i
+      - run: bun run smoke

@@ -12,6 +12,7 @@ bun run format     # Format
 bun run fix        # Lint + format + autofix
 bun run build      # Build dist with tsdown
 bun run checks     # Everything: check + typecheck + test + build
+bun run smoke      # Pack, install the tarball, use it as a consumer would
 ```
 
 Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when
@@ -32,6 +33,9 @@ mechanical style rules. Fix the code; don't disable rules.
 - `src/react.ts` — the `geometry-observer/react` entry point. React is an optional
   peer dependency; nothing else in the package imports it.
 - `test/` — Vitest browser tests. See CONTRIBUTING.md for the split.
+- `scripts/smoke.mts` — packs the tarball, installs it into a throwaway project
+  and uses it. The only thing that covers `files`, the `exports` map and `dist`,
+  none of which the suite touches, since it imports `#src/*`.
 
 ## Architecture
 

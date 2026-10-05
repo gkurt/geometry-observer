@@ -4,6 +4,7 @@
 bun i
 bun run test        # Vitest browser mode, real engines
 bun run checks      # lint + format + typecheck + test + build
+bun run smoke       # pack, install the tarball, use it as a consumer would
 ```
 
 The first run downloads the Playwright browsers it needs:
