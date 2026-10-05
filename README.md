@@ -101,11 +101,11 @@ Whether the native mechanism is available. Where it is not, the observer keeps t
 
 ## Browser support
 
-| Engine        | Mechanism | Notes                                                                                            |
-| ------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| Chromium 125+ | native    | Everything in the table above.                                                                   |
-| Safari 26+    | native    | Anchor positioning ships; teardown (`hidden` / `detached`) is not reported.                      |
-| Firefox       | fallback  | Parses anchor positioning but never resolves it; a shared sampling loop keeps the API identical. |
+| Engine        | Mechanism | Notes                                                                                          |
+| ------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| Chromium 125+ | native    | Everything in the table above.                                                                 |
+| Safari 26+    | native    | Anchor positioning ships; teardown (`hidden` / `detached`) is not reported.                    |
+| Firefox       | fallback  | Parses anchor positioning but does not run it; a shared sampling loop keeps the API identical. |
 
 ## Caveats
 

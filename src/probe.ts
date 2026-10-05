@@ -29,7 +29,7 @@ const LOST = '-99999px';
  * `content-visibility: hidden` costs the probe nothing — it has no contents to
  * skip — and takes a sizeable bite out of its share of every reflow.
  */
-const PROBE_STYLE: Readonly<Record<string, string>> = {
+export const PROBE_STYLE: Readonly<Record<string, string>> = {
   position: 'fixed',
   margin: '0',
   border: '0',
