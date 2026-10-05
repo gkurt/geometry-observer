@@ -28,7 +28,7 @@ function Box({
 }) {
   probe.renders++;
   // A fresh arrow every render on purpose: it must not re-subscribe.
-  const ref = useGeometryObserver<HTMLDivElement>((entries, observer) => {
+  const ref = useGeometryObserver((entries, observer) => {
     probe.entries.push(...entries);
     onGeometry?.(entries, observer);
   }, options);
@@ -106,7 +106,7 @@ describe('useGeometryObserver', () => {
   test('moves the subscription when the element itself changes', async () => {
     function Swap({ p }: { p: Probe }) {
       const [second, setSecond] = useState(false);
-      const ref = useGeometryObserver<HTMLDivElement>((entries) => p.entries.push(...entries));
+      const ref = useGeometryObserver((entries) => p.entries.push(...entries));
       return (
         <>
           <button type="button" data-testid="swap" onClick={() => setSecond(true)}>
@@ -169,7 +169,7 @@ describe('useGeometryObserver', () => {
   test('leaves the element clean when it never had an anchor-name', async () => {
     function Named({ p }: { p: Probe }) {
       const host = useRef<HTMLDivElement>(null);
-      const ref = useGeometryObserver<HTMLDivElement>((entries) => p.entries.push(...entries));
+      const ref = useGeometryObserver((entries) => p.entries.push(...entries));
       return (
         <div
           data-testid="named"

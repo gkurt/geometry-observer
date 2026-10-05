@@ -8,7 +8,7 @@ export interface UseGeometryObserverOptions extends GeometryObserverInit, Observ
  * Observe one element's geometry for the life of the component.
  *
  * ```tsx
- * const ref = useGeometryObserver<HTMLDivElement>(([entry]) => {
+ * const ref = useGeometryObserver(([entry]) => {
  *   overlay.current?.style.setProperty('translate', `${entry.rect.x}px ${entry.rect.y}px`);
  * });
  *
@@ -32,10 +32,10 @@ export interface UseGeometryObserverOptions extends GeometryObserverInit, Observ
  * `return` still works, it just releases a beat later, through React's older
  * null-on-detach path.
  */
-export function useGeometryObserver<T extends Element = Element>(
+export function useGeometryObserver(
   callback: GeometryCallback,
   options: UseGeometryObserverOptions = {},
-): (node: T | null) => (() => void) | undefined {
+): (node: Element | null) => (() => void) | undefined {
   const { batch, track, settle, anchorName } = options;
 
   // Refs, not dependencies: the whole point is that an inline callback and an
@@ -50,9 +50,9 @@ export function useGeometryObserver<T extends Element = Element>(
   // below can tell a real change from a re-render.
   const applied = useRef<UseGeometryObserverOptions>(current.current);
   const observer = useRef<GeometryObserver | null>(null);
-  const node = useRef<T | null>(null);
+  const node = useRef<Element | null>(null);
 
-  const attach = useCallback((element: T | null) => {
+  const attach = useCallback((element: Element | null) => {
     if (element === null) {
       // React 19 releases through the cleanup below and never passes null. A
       // caller composing refs by hand can still forget to forward that cleanup,

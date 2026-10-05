@@ -47,7 +47,7 @@ const stop = observeGeometry(element, ([entry]) => place(entry.rect));
 import { useGeometryObserver } from 'geometry-observer/react';
 
 function Tooltip() {
-  const ref = useGeometryObserver<HTMLButtonElement>(([entry]) => place(entry.rect));
+  const ref = useGeometryObserver(([entry]) => place(entry.rect));
   return <button ref={ref}>Hover me</button>;
 }
 ```
