@@ -255,6 +255,7 @@ describe('settle', () => {
     await quiet();
     rec.drain();
 
+    const before = box().getBoundingClientRect().width;
     for (let i = 0; i < 15; i++) {
       box().style.width = `${100 + i * 6}px`;
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
@@ -262,7 +263,13 @@ describe('settle', () => {
     expect(rec.count()).toBe(0);
 
     await quiet();
-    expect(rec.drain()).toHaveLength(1);
+    const entries = rec.drain();
+    expect(entries).toHaveLength(1);
+
+    // The one entry spans the whole churn: measured against the geometry from
+    // before it started, not against the previous frame.
+    expect(Math.round(entries[0]!.previousRect!.width)).toBe(Math.round(before));
+    expect(Math.round(entries[0]!.rect.width)).toBe(Math.round(box().getBoundingClientRect().width));
   });
 });
 

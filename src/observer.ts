@@ -65,6 +65,23 @@ function delist(observer: GeometryObserver): void {
   releaseProbeGroup();
 }
 
+/**
+ * One rect read, plus the key that decides whether it is news.
+ *
+ * State belongs in the key: an element already 0×0 that then gets hidden has the
+ * same rect and a different meaning.
+ */
+function measure(target: Element): { rect: DOMRect; state: GeometryState; key: string } {
+  const connected = target.isConnected;
+  const rect = target.getBoundingClientRect();
+  const state: GeometryState = connected
+    ? rect.width > 0 || rect.height > 0 || target.getClientRects().length > 0
+      ? 'rendered'
+      : 'hidden'
+    : 'detached';
+  return { rect, state, key: `${state}|${rect.x},${rect.y},${rect.width},${rect.height}` };
+}
+
 /** `Element` carries no `style`; every element we can anchor to does. */
 function hasStyle(element: Element): element is Element & ElementCSSInlineStyle {
   return 'style' in element;
@@ -97,6 +114,7 @@ export class GeometryObserver {
   #track: Track;
   #settle: number;
   #settleTimer: ReturnType<typeof setTimeout> | undefined;
+  #settleTick = 0;
   #watches = new Map<Element, Watch>();
   #pendingObserve: { target: Element; anchorName?: string }[] = [];
   #dirty = new Set<Element>();
@@ -163,6 +181,8 @@ export class GeometryObserver {
     this.#records.length = 0;
     if (this.#tick !== 0) cancelAnimationFrame(this.#tick);
     this.#tick = 0;
+    if (this.#settleTick !== 0) cancelAnimationFrame(this.#settleTick);
+    this.#settleTick = 0;
     clearTimeout(this.#settleTimer);
     this.#settleTimer = undefined;
     delist(this);
@@ -218,21 +238,42 @@ export class GeometryObserver {
   }
 
   /**
-   * Scrolling and viewport resizes arrive as plain events with no transition
-   * behind them, so there is no CSS delay to lean on. Honour `settle` here with an
-   * actual timer, otherwise the same observer would debounce layout changes and
-   * fire immediately on scroll.
+   * Scrolling, viewport resizes and the sampling fallback arrive as plain events
+   * with no transition behind them, so there is no CSS delay to lean on. Honour
+   * `settle` here with an actual timer, otherwise the same observer would debounce
+   * layout changes and fire immediately on scroll.
+   *
+   * The timer restarts on a real change, never on a bare wake. The sampler wakes
+   * every frame whether or not anything moved, so restarting per wake would keep
+   * pushing the deadline out of reach and the observer would go silent for good.
+   * Checking is read-only, so the delivery that eventually lands still measures
+   * against the geometry from before the churn started and reports it as one entry.
    */
   #wakeScheduled(): void {
     if (this.#settle === 0) {
       this.#schedule();
       return;
     }
-    clearTimeout(this.#settleTimer);
-    this.#settleTimer = setTimeout(() => {
-      this.#settleTimer = undefined;
-      this.#schedule();
-    }, this.#settle);
+    if (this.#settleTick !== 0) return;
+    this.#settleTick = requestAnimationFrame(() => {
+      this.#settleTick = 0;
+      if (!this.#changed()) return;
+      clearTimeout(this.#settleTimer);
+      this.#settleTimer = setTimeout(() => {
+        this.#settleTimer = undefined;
+        this.#collect();
+        this.#deliver();
+      }, this.#settle);
+    });
+  }
+
+  /** Whether anything already dirty has actually moved. Reads only. */
+  #changed(): boolean {
+    for (const target of this.#dirty) {
+      const watch = this.#watches.get(target);
+      if (watch !== undefined && measure(target).key !== watch.key) return true;
+    }
+    return false;
   }
 
   /**
@@ -313,17 +354,7 @@ export class GeometryObserver {
       // parked on its fallback and describes nothing. The target's own
       // getBoundingClientRect() is the scroll- and transform-adjusted truth in
       // every state, and honestly reports zeroes in the states below.
-      const connected = target.isConnected;
-      const rect = target.getBoundingClientRect();
-      const state: GeometryState = connected
-        ? rect.width > 0 || rect.height > 0 || target.getClientRects().length > 0
-          ? 'rendered'
-          : 'hidden'
-        : 'detached';
-
-      // State belongs in the key: an element already 0×0 that then gets hidden has
-      // the same rect and a different meaning.
-      const key = `${state}|${rect.x},${rect.y},${rect.width},${rect.height}`;
+      const { rect, state, key } = measure(target);
       if (key === watch.key) continue; // woken by a scroll with nothing to say
       const previousRect = watch.last;
       watch.key = key;
