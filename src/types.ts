@@ -1,13 +1,17 @@
 import type { GeometryObserver } from './observer.ts';
 
-/** When the callback runs. */
+/**
+ * When the callback runs for changes that don't come through layout: scrolls,
+ * viewport resizes, popovers and dialogs toggling. Layout changes always arrive
+ * from a `ResizeObserver` callback, once per frame, in the frame they happen.
+ */
 export type BatchMode =
-  /** One batched callback per animation frame, like `ResizeObserver`. The default. */
+  /** Batched into one callback in the next animation frame. The default. */
   | 'frame'
-  /** Inside the transition event. A frame earlier, but possibly several calls per frame. */
+  /** Immediately, in the event that saw the change. Possibly several calls per frame. */
   | 'sync';
 
-/** Which geometry changes trigger a callback. Tracking fewer properties makes the probe cheaper. */
+/** Which geometry changes trigger a callback. `'size'` needs no probe, so it adds nothing to each reflow. */
 export type Track = 'both' | 'position' | 'size';
 
 /**
@@ -26,17 +30,15 @@ export interface GeometryObserverInit {
   /** When the callback runs. Default `'frame'`. */
   batch?: BatchMode;
   /**
-   * Which changes trigger a callback. `'position'` or `'size'` transitions two
-   * properties instead of four, which roughly halves the probe's cost. Entries
-   * still carry the full, current rect. Default `'both'`.
+   * Which changes trigger a callback. `'position'` watches only the probe.
+   * `'size'` watches only the target's own size, with a `ResizeObserver` and no
+   * probe, so it adds nothing to each reflow. Entries still carry the full,
+   * current rect. Default `'both'`.
    */
   track?: Track;
   /**
    * Report only after the geometry has been still for this many milliseconds.
-   *
-   * Implemented as the probe's `transition-delay`: each change restarts the
-   * delay, so no JavaScript runs until the target stops moving. Scrolls and the
-   * sampling fallback use a timer instead.
+   * Each change restarts a timer, so the callback runs once the target stops.
    *
    * Only the trailing edge is reported, so a target that never stops moving never
    * reports. Default `0`.

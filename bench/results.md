@@ -10,24 +10,24 @@ Milliseconds of main-thread work each approach adds per frame over an untracked 
 
 | scenario               | targets | geometry-observer | raf-loop | floating-ui |   resize-observer |
 | ---------------------- | ------: | ----------------: | -------: | ----------: | ----------------: |
-| idle                   |      10 |              0.00 |     0.16 |        0.00 |              0.00 |
-| idle                   |     100 |              0.00 |     0.19 |        0.00 |              0.00 |
-| idle                   |    1000 |              0.00 |     0.91 |        0.18 |              0.00 |
-| unrelated reflow       |      10 |              0.18 |     0.09 |        0.14 |              0.03 |
-| unrelated reflow       |     100 |              0.90 |     0.07 |        0.09 |              0.03 |
-| unrelated reflow       |    1000 |              7.72 |     0.59 |        0.79 |              0.00 |
-| all targets move       |      10 |              0.71 |     0.14 |        0.20 |   0.12 (10 stale) |
-| all targets move       |     100 |              3.41 |     0.09 |        0.66 |  0.00 (100 stale) |
-| all targets move       |    1000 |             27.87 |     0.69 |        4.19 | 0.18 (1000 stale) |
-| one resize / 10 frames |      10 |              0.18 |     0.20 |        0.05 |              0.08 |
-| one resize / 10 frames |     100 |              0.56 |     0.18 |        0.09 |              0.00 |
-| one resize / 10 frames |    1000 |              3.59 |     0.82 |        0.57 |              0.00 |
-| scroll                 |      10 |              0.19 |     0.06 |        0.14 |   0.00 (10 stale) |
-| scroll                 |     100 |              0.56 |     0.07 |        0.99 |  0.04 (100 stale) |
-| scroll                 |    1000 |              3.96 |     0.68 |        5.59 | 0.04 (1000 stale) |
-| ancestor transform     |      10 |              0.70 |     0.00 |        0.38 |   0.00 (10 stale) |
-| ancestor transform     |     100 |              2.90 |     0.25 |        0.92 |  0.14 (100 stale) |
-| ancestor transform     |    1000 |             24.36 |     0.93 |        4.66 | 0.03 (1000 stale) |
+| idle                   |      10 |              0.00 |     0.17 |        0.00 |              0.00 |
+| idle                   |     100 |              0.00 |     0.27 |        0.00 |              0.00 |
+| idle                   |    1000 |              0.00 |     1.04 |        0.21 |              0.00 |
+| unrelated reflow       |      10 |              0.15 |     0.12 |        0.12 |              0.00 |
+| unrelated reflow       |     100 |              0.73 |     0.11 |        0.25 |              0.07 |
+| unrelated reflow       |    1000 |              6.30 |     0.63 |        0.65 |              0.00 |
+| all targets move       |      10 |              0.28 |     0.04 |        0.13 |   0.00 (10 stale) |
+| all targets move       |     100 |              1.16 |     0.13 |        0.66 |  0.00 (100 stale) |
+| all targets move       |    1000 |              8.98 |     1.05 |        4.48 | 0.19 (1000 stale) |
+| one resize / 10 frames |      10 |              0.02 |     0.00 |        0.02 |              0.00 |
+| one resize / 10 frames |     100 |              0.27 |     0.08 |        0.21 |              0.05 |
+| one resize / 10 frames |    1000 |              2.13 |     0.73 |        0.59 |              0.03 |
+| scroll                 |      10 |              0.08 |     0.01 |        0.13 |   0.04 (10 stale) |
+| scroll                 |     100 |              0.41 |     0.09 |        0.65 |  0.00 (100 stale) |
+| scroll                 |    1000 |              4.48 |     0.66 |        5.40 | 0.10 (1000 stale) |
+| ancestor transform     |      10 |              0.13 |     0.00 |        0.00 |   0.00 (10 stale) |
+| ancestor transform     |     100 |              1.11 |     0.09 |        0.82 |  0.00 (100 stale) |
+| ancestor transform     |    1000 |              9.35 |     0.70 |        4.27 | 0.00 (1000 stale) |
 
 ### Coverage
 
@@ -35,19 +35,19 @@ Whether the last report matches the real rect once the page settles, and the med
 
 | change                                   | geometry-observer | raf-loop | floating-ui | resize-observer |
 | ---------------------------------------- | :---------------: | :------: | :---------: | :-------------: |
-| sibling above grows                      |     yes, 18ms     | yes, 2ms |  yes, 1ms   |       no        |
-| sibling inserted before it               |     yes, 19ms     | yes, 2ms |  yes, 0ms   |       no        |
-| own size (style)                         |     yes, 17ms     | yes, 2ms |  yes, 1ms   |    yes, 1ms     |
-| own size (content)                       |     yes, 16ms     | yes, 2ms |  yes, 4ms   |    yes, 5ms     |
-| ancestor transform                       |     yes, 18ms     | yes, 3ms |  yes, 1ms   |       no        |
+| sibling above grows                      |     yes, 0ms      | yes, 3ms |  yes, 0ms   |       no        |
+| sibling inserted before it               |     yes, 1ms      | yes, 2ms |  yes, 1ms   |       no        |
+| own size (style)                         |     yes, 1ms      | yes, 3ms |  yes, 0ms   |    yes, 0ms     |
+| own size (content)                       |     yes, 5ms      | yes, 2ms |  yes, 5ms   |    yes, 3ms     |
+| ancestor transform                       |     yes, 0ms      | yes, 3ms |  yes, 1ms   |       no        |
 | ancestor transform animation             |     yes, 0ms      | yes, 0ms |  yes, 0ms   |       no        |
 | nested scroll                            |     yes, 0ms      | yes, 2ms |  yes, 0ms   |       no        |
-| page scroll                              |     yes, 0ms      | yes, 3ms |  yes, 0ms   |       no        |
-| moves while off-screen                   |     yes, 18ms     | yes, 4ms |  yes, 1ms   |       no        |
-| moves while scrolled out of its scroller |     yes, 5ms      | yes, 3ms |     no      |       no        |
-| moves while partly clipped               |     yes, 15ms     | yes, 1ms |  yes, 1ms   |       no        |
-| display: none                            |     yes, 18ms     | yes, 2ms |  yes, 1ms   |    yes, 0ms     |
-| removed                                  |     yes, 19ms     | yes, 3ms |  yes, 0ms   |    yes, 0ms     |
+| page scroll                              |     yes, 0ms      | yes, 0ms |  yes, 0ms   |       no        |
+| moves while off-screen                   |     yes, 1ms      | yes, 5ms |  yes, 1ms   |       no        |
+| moves while scrolled out of its scroller |     yes, 1ms      | yes, 3ms |     no      |       no        |
+| moves while partly clipped               |     yes, 1ms      | yes, 2ms |  yes, 1ms   |       no        |
+| display: none                            |     yes, 1ms      | yes, 2ms |  yes, 0ms   |    yes, 0ms     |
+| removed                                  |     yes, 1ms      | yes, 2ms |  yes, 0ms   |    yes, 0ms     |
 
 ## webkit 26.6
 
@@ -57,19 +57,19 @@ Whether the last report matches the real rect once the page settles, and the med
 
 | change                                   | geometry-observer | raf-loop  | floating-ui | resize-observer |
 | ---------------------------------------- | :---------------: | :-------: | :---------: | :-------------: |
-| sibling above grows                      |     yes, 1ms      | yes, 2ms  |  yes, 1ms   |       no        |
-| sibling inserted before it               |     yes, 1ms      | yes, 8ms  |  yes, 1ms   |       no        |
-| own size (style)                         |     yes, 1ms      | yes, 1ms  |  yes, 1ms   |    yes, 0ms     |
-| own size (content)                       |     yes, 2ms      | yes, 3ms  |  yes, 1ms   |    yes, 1ms     |
-| ancestor transform                       |     yes, 2ms      | yes, 14ms |  yes, 1ms   |       no        |
-| ancestor transform animation             |     yes, 17ms     | yes, 0ms  |  yes, 0ms   |       no        |
-| nested scroll                            |     yes, 3ms      | yes, 6ms  |  yes, 0ms   |       no        |
-| page scroll                              |     yes, 2ms      | yes, 0ms  |  yes, 1ms   |       no        |
-| moves while off-screen                   |     yes, 2ms      | yes, 7ms  |  yes, 1ms   |       no        |
-| moves while scrolled out of its scroller |     yes, 1ms      | yes, 7ms  |     no      |       no        |
-| moves while partly clipped               |     yes, 2ms      | yes, 3ms  |  yes, 0ms   |       no        |
-| display: none                            |     yes, 2ms      | yes, 3ms  |  yes, 1ms   |    yes, 1ms     |
-| removed                                  |     yes, 3ms      | yes, 3ms  |  yes, 0ms   |    yes, 0ms     |
+| sibling above grows                      |     yes, 0ms      | yes, 3ms  |  yes, 1ms   |       no        |
+| sibling inserted before it               |     yes, 1ms      | yes, 3ms  |  yes, 0ms   |       no        |
+| own size (style)                         |     yes, 1ms      | yes, 3ms  |  yes, 1ms   |    yes, 1ms     |
+| own size (content)                       |     yes, 1ms      | yes, 1ms  |  yes, 2ms   |    yes, 1ms     |
+| ancestor transform                       |     yes, 1ms      | yes, 3ms  |  yes, 1ms   |       no        |
+| ancestor transform animation             |     yes, 1ms      | yes, 0ms  |  yes, 0ms   |       no        |
+| nested scroll                            |     yes, 1ms      | yes, 3ms  |  yes, 0ms   |       no        |
+| page scroll                              |     yes, 1ms      | yes, 10ms |  yes, 0ms   |       no        |
+| moves while off-screen                   |     yes, 1ms      | yes, 14ms |  yes, 1ms   |       no        |
+| moves while scrolled out of its scroller |     yes, 0ms      | yes, 11ms |     no      |       no        |
+| moves while partly clipped               |     yes, 1ms      | yes, 11ms |  yes, 1ms   |       no        |
+| display: none                            |     yes, 1ms      | yes, 1ms  |  yes, 1ms   |    yes, 0ms     |
+| removed                                  |     yes, 1ms      | yes, 14ms |  yes, 0ms   |    yes, 0ms     |
 
 ## firefox
 

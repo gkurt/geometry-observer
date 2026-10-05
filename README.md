@@ -14,9 +14,9 @@ npm install geometry-observer
 
 This library tries a third way: get the browser to send an event when layout moves an element.
 
-1. Each observed element gets a hidden probe element that copies its box with `anchor()` and `anchor-size()`. Layout keeps the probe's `top`, `left`, `width` and `height` in sync with the target.
-2. Those properties have a 1ms transition.
-3. When the target moves or resizes, the probe's transition starts and fires `transitionstart`. The observer then reads the target's rect.
+1. Each observed element gets a hidden probe that stretches, with `anchor()`, from the element's top-left corner to far past the viewport. Its size therefore encodes the element's position.
+2. When layout moves the element, the probe resizes, and a `ResizeObserver` on the probe reports it in the same frame. The same `ResizeObserver` watches the element's own size.
+3. The observer then reads the element's rect. Scrolling moves elements without a layout, so one scroll listener covers it.
 
 The probe takes no space in the layout and is never painted.
 
@@ -73,7 +73,7 @@ const ref = useCallback(
 
 ## What it reports
 
-Measured in Chromium and WebKit by [bench/](bench/). Floating UI's `autoUpdate` combines a `ResizeObserver`, scroll listeners and a rebuilt `IntersectionObserver`.
+Measured in Chromium and WebKit by [bench/](bench/); Firefox differences are under [Browser support](#browser-support). Floating UI's `autoUpdate` combines a `ResizeObserver`, scroll listeners and a rebuilt `IntersectionObserver`.
 
 | Change                                   | geometry-observer   | ResizeObserver | Floating UI `autoUpdate` | rAF loop |
 | ---------------------------------------- | ------------------- | -------------- | ------------------------ | -------- |
@@ -81,7 +81,7 @@ Measured in Chromium and WebKit by [bench/](bench/). Floating UI's `autoUpdate` 
 | Content changed its size                 | yes                 | yes            | yes                      | yes      |
 | A sibling above it grew                  | yes                 | —              | yes                      | yes      |
 | A node was inserted above it             | yes                 | —              | yes                      | yes      |
-| An ancestor `transform` changed          | yes                 | —              | yes                      | yes      |
+| An ancestor `transform` changed          | yes, except Firefox | —              | yes                      | yes      |
 | Scrolled                                 | yes                 | —              | yes                      | yes      |
 | Moved while off-screen or partly clipped | yes                 | —              | yes                      | yes      |
 | Moved while scrolled out of its scroller | yes                 | —              | —                        | yes      |
@@ -94,12 +94,12 @@ Main-thread time each approach adds per frame in Chromium 153, for 100 and 1,000
 
 | Scenario                        | geometry-observer | rAF loop  | Floating UI `autoUpdate` |
 | ------------------------------- | ----------------- | --------- | ------------------------ |
-| Nothing changes                 | 0 / 0             | 0.2 / 0.9 | 0 / 0.2                  |
-| A reflow that moves nothing     | 0.9 / 7.7         | 0.1 / 0.6 | 0.1 / 0.8                |
-| Every element moves every frame | 3.4 / 28          | 0.1 / 0.7 | 0.7 / 4.2                |
-| Scrolling                       | 0.6 / 4.0         | 0.1 / 0.7 | 1.0 / 5.6                |
+| Nothing changes                 | 0 / 0             | 0.3 / 1.0 | 0 / 0.2                  |
+| A reflow that moves nothing     | 0.7 / 6.3         | 0.1 / 0.6 | 0.3 / 0.7                |
+| Every element moves every frame | 1.2 / 9.0         | 0.1 / 1.1 | 0.7 / 4.5                |
+| Scrolling                       | 0.4 / 4.5         | 0.1 / 0.7 | 0.7 / 5.4                |
 
-It is cheapest only when nothing changes, and beats Floating UI (though not a rAF loop) while scrolling. Each probe is an anchor-positioned box, and Chromium lays out every one of them on every reflow, whether or not its target moved. That doesn't depend on which properties transition, or on containment: a probe with no transition at all costs the same. When a target moves, its probe also starts a transition and fires events, every frame the movement lasts.
+It is cheapest only when nothing changes, and beats Floating UI (though not a rAF loop) while scrolling. Each probe is an anchor-positioned box, and Chromium lays out every one of them on every reflow, whether or not its target moved. That cost doesn't depend on the probe's styles or containment. Under constant motion it costs about twice Floating UI, and several times a rAF loop.
 
 So:
 
@@ -111,11 +111,11 @@ So:
 
 ### `new GeometryObserver(callback, init?)`
 
-| Option   | Default   | Meaning                                                                                                                                                                   |
-| -------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `batch`  | `'frame'` | `'frame'` delivers once per animation frame, like `ResizeObserver`. `'sync'` delivers inside the transition event: a frame earlier, but possibly several times per frame. |
-| `track`  | `'both'`  | `'position'` or `'size'` transitions two properties instead of four, which roughly halves the probe's cost. Entries still carry the full rect.                            |
-| `settle` | `0`       | Report only after the geometry has been still for this many milliseconds.                                                                                                 |
+| Option   | Default   | Meaning                                                                                                                                                                                      |
+| -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `batch`  | `'frame'` | Layout changes always arrive in the frame they happen. For scrolls, viewport resizes and toggles, `'frame'` batches into the next animation frame and `'sync'` delivers in the event itself. |
+| `track`  | `'both'`  | `'position'` watches only the probe. `'size'` watches only the element's own size and needs no probe, so it adds nothing to each reflow. Entries still carry the full rect.                  |
+| `settle` | `0`       | Report only after the geometry has been still for this many milliseconds.                                                                                                                    |
 
 Methods:
 
@@ -123,7 +123,7 @@ Methods:
 - `unobserve(target)`
 - `disconnect()`
 - `takeRecords()` returns pending entries without calling the callback.
-- `reconfigure({ track?, settle?, batch? })` changes options in place. It rewrites one inline `transition` per probe and doesn't re-attach anything.
+- `reconfigure({ track?, settle?, batch? })` changes options in place. A new `track` adds or removes probes; nothing is re-attached.
 
 The current options are readable as `observer.track`, `observer.settle` and `observer.batch`.
 
@@ -148,7 +148,7 @@ An element sized 0×0, one hidden with `display: none` and one removed from the 
 new GeometryObserver(callback, { settle: 250 });
 ```
 
-`settle` is the probe's `transition-delay`. Each change restarts the delay, so no JavaScript runs until the target has been still for `settle` milliseconds. A JavaScript debounce would have to run on every change to reset its timer. Scrolling and the sampling fallback have no transition behind them, so they use a timer.
+Each change restarts a timer, and the callback runs once the target has been still for `settle` milliseconds.
 
 Only the trailing edge is reported: a target that keeps moving never reports.
 
@@ -162,26 +162,29 @@ The probes live in a single `<div data-geometry-probes>` appended to `<body>`. T
 
 ## Browser support
 
-|                                        | Chromium 125+ | Safari 26+       | Firefox             |
-| -------------------------------------- | ------------- | ---------------- | ------------------- |
-| Mechanism                              | anchor probes | anchor probes    | sampling fallback   |
-| Position, size and layout-driven moves | yes           | yes              | yes                 |
-| Ancestor `transform`                   | yes           | yes              | yes                 |
-| `detached` state                       | yes           | yes              | yes                 |
-| `hidden` state                         | yes           | from DOM changes | yes                 |
-| Work while the page is idle            | none          | none             | one check per frame |
+|                                        | Chromium 125+ | Safari 26+                   | Firefox (tested on 155) |
+| -------------------------------------- | ------------- | ---------------------------- | ----------------------- |
+| Mechanism                              | anchor probes | anchor probes                | anchor probes           |
+| Position, size and layout-driven moves | yes           | yes                          | yes                     |
+| Ancestor `transform`                   | yes           | yes                          | no                      |
+| `detached` state                       | yes           | yes                          | yes                     |
+| `hidden` state                         | yes           | yes, except 0×0 by CSS alone | yes                     |
+| Work while the page is idle            | none          | none                         | none                    |
 
-**Safari** doesn't restyle a probe when its anchor is removed or hidden, so the probe keeps its last box and no transition runs. Any other style change on the probe makes it fall back correctly, so this looks like a missing invalidation in WebKit (seen in Safari 26.6 and 27.0). `isSupported()` measures this, and where it happens the observer also watches DOM mutations: a removal wakes every target that is no longer connected, and an attribute change (`style`, `class`, `hidden`, `open`, …) wakes the targets at or under the element that changed. Popovers and dialogs report through their `toggle` event. A target hidden by CSS alone, such as a `:hover` rule, a stylesheet edit or a container query, isn't reported until something else wakes it. The mutation observer costs about 0.2–0.5ms per frame on a page that changes 300 attributes every frame.
+Browsers without anchor positioning or `ResizeObserver` fall back to one shared `requestAnimationFrame` loop, which catches everything but checks every frame.
 
-**Firefox** accepts all the CSS involved, but doesn't yet support [transitions on anchor-driven changes](https://caniuse.com/wf-anchor-positioning-animations). `isSupported()` checks this by measuring a real probe rather than trusting `CSS.supports()`, and the observer falls back to sampling.
+WebKit on Linux (the WebKit Playwright runs there) delivers no `ResizeObserver` notifications at all while an element is fullscreen, so layout changes go unreported until fullscreen ends. Safari on macOS keeps delivering them.
+
+**Safari** doesn't restyle a probe when its anchor is removed or hidden, so the probe keeps its last box and doesn't resize. Any other style change on the probe makes it fall back correctly, so this looks like a missing invalidation in WebKit (seen in Safari 26.6 and 27.0). An element with a size still shrinks to 0×0 when hidden or removed, and its own `ResizeObserver` reports that. For a 0×0 element, or with `track: 'position'`, the observer also watches DOM mutations in engines where `isSupported()` measured the problem: a removal wakes every element that is no longer connected, and an attribute change (`style`, `class`, `hidden`, `open`, …) wakes the elements at or under the one that changed. Such an element hidden by CSS alone, like a `:hover` rule or a stylesheet edit, isn't reported until something else wakes it.
+
+**Firefox** resolves `anchor()` against an element's untransformed box, so a change to an ancestor's `transform` doesn't resize the probe and isn't reported. Everything else works as in the other engines.
 
 ## Caveats
 
-- **The cost is per reflow, not per frame.** See [Performance](#performance). Against a rAF loop it breaks even at about five reflows per second in Chromium, and several times that in Safari.
-- **Reports often arrive a frame late in Chromium.** The transition event is dispatched in the frame after the change, so most layout changes were reported 16–19ms later, where a rAF loop sees them in the same frame. WebKit reported within a few milliseconds.
-- **In Safari, CSS-only hiding goes unreported.** A target hidden by a pseudo-class or a stylesheet change, with no DOM mutation behind it, keeps its last `rendered` entry. Removal is always reported.
+- **The cost is per reflow, not per frame.** See [Performance](#performance). Against a rAF loop, which costs the same every frame, it breaks even at roughly 10–20 reflows per second in Chromium, from the numbers there.
+- **In Safari, a 0×0 element hidden by CSS alone goes unreported.** See [Browser support](#browser-support). Removal is always reported.
 - **Composited transform animations lag by about half a frame.** The rect is exact once the animation stops, but a few pixels behind while it runs.
-- **CSS resets can't turn it off.** The probe's styles are inline and `!important`, so a reset like `* { transition: none !important }` doesn't affect it.
+- **Page styles can't turn it off.** The probe's styles are inline and `!important`, and nothing depends on transitions or animations, so resets like `* { transition: none !important }` don't affect it.
 
 ## License
 

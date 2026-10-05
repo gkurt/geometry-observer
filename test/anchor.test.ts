@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { GeometryObserver, isSupported, PROBE_GROUP_ATTRIBUTE } from '#src/index.ts';
-import { mount, quiet, recorder } from './helpers.ts';
+import { frame, mount, quiet, recorder } from './helpers.ts';
 
 /**
  * Behaviour specific to the anchor-positioning mechanism. Engines on the sampling
@@ -122,6 +122,21 @@ anchors('anchor-name handling', () => {
 });
 
 anchors('coverage that depends on the probe', () => {
+  test('reports a layout change in the frame it happens', async () => {
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    pad().style.height = '60px';
+    // The next frame's rAF runs before its layout; by the frame after, that
+    // layout's ResizeObserver callback has delivered.
+    await frame();
+    await frame();
+    expect(rec.drain().at(-1)?.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
+  });
+
   test('survives a blanket transition reset', async () => {
     const reset = document.createElement('style');
     reset.textContent = '*{transition:none !important;animation:none !important}';
@@ -151,10 +166,12 @@ anchors('reconfigure', () => {
     const anchorName = box().style.getPropertyValue('anchor-name');
     rec.drain();
 
+    const probes = probeCount();
     observer.reconfigure({ track: 'size' });
     await quiet();
-    // Reconfiguring is a style write, not a change of geometry.
+    // Reconfiguring isn't a change of geometry, and size alone needs no probe.
     expect(rec.count()).toBe(0);
+    expect(probeCount()).toBe(probes - 1);
     expect(box().style.getPropertyValue('anchor-name')).toBe(anchorName);
     expect(observer.track).toBe('size');
 

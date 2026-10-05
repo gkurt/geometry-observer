@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { GeometryObserver, isSupported, observeGeometry } from '#src/index.ts';
-import { REPORTS_CSS_ONLY_TEARDOWN } from './capabilities.ts';
+import { FOLLOWS_TRANSFORMS, SEES_CSS_ONLY_LOSS } from './capabilities.ts';
 import { mount, quiet, recorder } from './helpers.ts';
 
 let host: HTMLElement;
@@ -19,6 +19,25 @@ afterEach(() => {
 
 const box = (): HTMLElement => host.querySelector<HTMLElement>('#box')!;
 const pad = (): HTMLElement => host.querySelector<HTMLElement>('#pad')!;
+
+/**
+ * Whether a plain `ResizeObserver` still fires inside `container`. Measured rather
+ * than assumed: WebKit on Linux delivers none while an element is fullscreen.
+ */
+async function resizeObserverRunsIn(container: HTMLElement): Promise<boolean> {
+  const sample = document.createElement('div');
+  sample.style.cssText = 'width:1px;height:1px';
+  container.append(sample);
+  let fired = 0;
+  const resize = new ResizeObserver(() => fired++);
+  resize.observe(sample);
+  await quiet(100);
+  sample.style.width = '2px';
+  await quiet(100);
+  resize.disconnect();
+  sample.remove();
+  return fired >= 2;
+}
 
 describe('delivery', () => {
   test('delivers an initial entry for a newly observed target', async () => {
@@ -54,7 +73,8 @@ describe('delivery', () => {
     expect(last.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
   });
 
-  test('reports a transform applied to an ancestor', async () => {
+  /** Skipped where the engine can't see it, see {@link FOLLOWS_TRANSFORMS}. */
+  test.skipIf(!FOLLOWS_TRANSFORMS)('reports a transform applied to an ancestor', async () => {
     const rec = recorder();
     observer = new GeometryObserver(rec.callback);
     observer.observe(box());
@@ -182,6 +202,10 @@ describe('delivery', () => {
     await quiet();
     if (refused) skip('this browser refused to go fullscreen');
     expect(document.fullscreenElement).toBe(fullscreen);
+    if (!(await resizeObserverRunsIn(fullscreen))) {
+      await document.exitFullscreen();
+      skip('this browser delivers no ResizeObserver notifications while an element is fullscreen');
+    }
     rec.drain();
 
     host.querySelector<HTMLElement>('#gap')!.style.height = '50px';
@@ -352,13 +376,31 @@ describe('state: teardown', () => {
     expect(last!.rect.top).toBeCloseTo(box().getBoundingClientRect().top, 1);
   });
 
-  /** Skipped where the engine can't see it, see {@link REPORTS_CSS_ONLY_TEARDOWN}. */
-  test.skipIf(!REPORTS_CSS_ONLY_TEARDOWN)('reports a target hidden by a stylesheet change alone', async () => {
+  test('reports a target hidden by a stylesheet change alone', async () => {
     const sheet = document.createElement('style');
     document.head.append(sheet);
     const rec = recorder();
     observer = new GeometryObserver(rec.callback);
     observer.observe(box());
+    await quiet();
+    rec.drain();
+
+    sheet.sheet!.insertRule('#box { display: none }');
+    await quiet();
+    expect(rec.drain().at(-1)?.state).toBe('hidden');
+    sheet.remove();
+  });
+
+  /** Skipped where the engine can't see it, see {@link SEES_CSS_ONLY_LOSS}. */
+  test.skipIf(!SEES_CSS_ONLY_LOSS)('reports a 0×0 target hidden by a stylesheet change alone', async () => {
+    const zero = box();
+    zero.style.width = '0';
+    zero.style.height = '0';
+    const sheet = document.createElement('style');
+    document.head.append(sheet);
+    const rec = recorder();
+    observer = new GeometryObserver(rec.callback);
+    observer.observe(zero);
     await quiet();
     rec.drain();
 

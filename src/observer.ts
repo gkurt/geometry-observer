@@ -1,11 +1,14 @@
-import { createProbe, raiseProbeGroup, releaseProbeGroup, retireProbe, transitionFor } from './probe.ts';
+import { createProbe, raiseProbeGroup, releaseProbeGroup, retireProbe } from './probe.ts';
 import { isSupported, missesAnchorLoss } from './support.ts';
 import type { BatchMode, GeometryCallback, GeometryEntry, GeometryObserverInit, GeometryState, ObserveOptions, Track } from './types.ts';
 
 interface Watch {
+  /** Only while position is tracked: `track: 'size'` needs no probe. */
   probe: HTMLElement | null;
-  /** Removes the probe's listener. Probes are pooled, so a listener left behind would keep this target and observer alive. */
-  release: AbortController | null;
+  /** The anchor name the probe follows, or `''` before attaching and where anchors aren't supported. */
+  anchor: string;
+  /** Whether the target's own size is being observed. */
+  sized: boolean;
   /** The target's own inline `anchor-name`, to be put back exactly as found. */
   priorAnchorName: string;
   ownsAnchorName: boolean;
@@ -48,16 +51,26 @@ function onToggle(event: Event): void {
   for (const observer of live) observer.wakeWithin(event.target);
 }
 
-/** A fullscreen element joins the top layer too, but fires no `toggle`. */
+/**
+ * A fullscreen element joins the top layer too, but fires no `toggle`. WebKit on
+ * Linux can fire the event before the element is in the top layer, so the group
+ * is raised again on the next frame.
+ */
 function onFullscreenChange(): void {
-  if (document.fullscreenElement !== null) raiseProbeGroup(document.fullscreenElement);
-  for (const observer of live) observer.wakeAll();
+  const raise = (): void => {
+    if (document.fullscreenElement !== null) raiseProbeGroup(document.fullscreenElement);
+    for (const observer of live) observer.wakeAll();
+  };
+  raise();
+  requestAnimationFrame(raise);
 }
 
 /**
- * WebKit doesn't restyle a probe when its anchor is removed or hidden, so no
- * transition reports it (see `missesAnchorLoss()`). There, the DOM changes that
- * remove or hide an element wake the targets they can affect instead.
+ * WebKit doesn't restyle a probe when its anchor is removed or hidden, so the
+ * probe doesn't resize (see `missesAnchorLoss()`). A target that has a size still
+ * shrinks to 0×0, which its own `ResizeObserver` sees, but a 0×0 target, or one
+ * tracked with `track: 'position'`, doesn't. There, the DOM changes that remove
+ * or hide an element wake the targets they can affect instead.
  */
 function onMutations(records: MutationRecord[]): void {
   const changed = new Set<Node>();
@@ -147,10 +160,11 @@ let seq = 0;
 /**
  * Reports when observed elements move or change size.
  *
- * Each target gets a hidden probe element that copies its box with `anchor()` and
- * `anchor-size()`. The probe's position and size have a short transition, so when
- * layout moves the target the probe fires `transitionstart`, and the observer
- * reads the target's rect. Nothing runs while nothing moves.
+ * Each target gets a hidden probe that stretches from the target's top-left
+ * corner, with `anchor()`, to far past the viewport. When layout moves the target
+ * the probe resizes, and a `ResizeObserver` on it reports the move in the same
+ * frame. The same `ResizeObserver` watches the target's own size, and one scroll
+ * listener covers scrolling. Nothing runs while nothing moves.
  *
  * ```ts
  * const observer = new GeometryObserver((entries) => {
@@ -172,6 +186,9 @@ export class GeometryObserver {
   #records: GeometryEntry[] = [];
   #tick = 0;
   #delivering = false;
+  #resize: ResizeObserver | null = null;
+  /** Probe to target, for the shared `ResizeObserver`. */
+  #owners = new Map<Element, Element>();
 
   constructor(callback: GeometryCallback, init: GeometryObserverInit = {}) {
     this.#cb = callback;
@@ -201,7 +218,8 @@ export class GeometryObserver {
     // Placeholder, so a second observe() in the same tick is a no-op.
     this.#watches.set(target, {
       probe: null,
-      release: null,
+      anchor: '',
+      sized: false,
       priorAnchorName: '',
       ownsAnchorName: anchorName === undefined,
       wroteAnchorName: false,
@@ -217,8 +235,8 @@ export class GeometryObserver {
   unobserve(target: Element): void {
     const watch = this.#watches.get(target);
     if (!watch) return;
-    watch.release?.abort();
-    if (watch.probe) retireProbe(watch.probe);
+    this.#dropProbe(watch);
+    if (watch.sized) this.#resize?.unobserve(target);
     if (watch.ownsAnchorName && watch.wroteAnchorName) {
       const style = inlineStyle(target);
       if (watch.priorAnchorName) style?.setProperty('anchor-name', watch.priorAnchorName);
@@ -241,6 +259,8 @@ export class GeometryObserver {
     this.#settleTick = 0;
     clearTimeout(this.#settleTimer);
     this.#settleTimer = undefined;
+    this.#resize?.disconnect();
+    this.#resize = null;
     delist(this);
   }
 
@@ -253,18 +273,16 @@ export class GeometryObserver {
   /**
    * Changes options on a live observer.
    *
-   * `track` and `settle` only affect each probe's inline `transition`, so this is
-   * one style write per observed element. Nothing is re-attached or re-measured.
+   * Nothing is re-attached. A new `track` adds or removes probes and changes what
+   * the `ResizeObserver` watches; `settle` and `batch` only change when entries go out.
    */
   reconfigure(init: GeometryObserverInit): void {
     if (init.batch !== undefined) this.#batch = init.batch;
-    const retune = init.track !== undefined || init.settle !== undefined;
-    if (init.track !== undefined) this.#track = init.track;
     if (init.settle !== undefined) this.#settle = Math.max(0, init.settle);
-    if (!retune) return;
-
-    const transition = transitionFor(this.#track, this.#settle);
-    for (const watch of this.#watches.values()) watch.probe?.style.setProperty('transition', transition, 'important');
+    if (init.track !== undefined && init.track !== this.#track) {
+      this.#track = init.track;
+      for (const [target, watch] of this.#watches) this.#applyTrack(target, watch);
+    }
 
     // A change already waiting in the settle timer would otherwise wait out the old delay.
     if (this.#settle === 0 && this.#settleTimer !== undefined) {
@@ -303,11 +321,10 @@ export class GeometryObserver {
   }
 
   /**
-   * Scrolls, viewport resizes and the sampling fallback have no transition behind
-   * them, so `settle` needs a real timer on this path.
-   *
-   * The timer restarts only when something actually moved. The sampler wakes every
-   * frame, so restarting on every wake would push the deadline back forever.
+   * Scrolls, viewport resizes, toggles and the sampling fallback wake targets that
+   * may not have changed, so with `settle` the timer restarts only when something
+   * actually moved. The sampler wakes every frame, so restarting on every wake
+   * would push the deadline back forever.
    */
   #wakeScheduled(): void {
     if (this.#settle === 0) {
@@ -317,14 +334,70 @@ export class GeometryObserver {
     if (this.#settleTick !== 0) return;
     this.#settleTick = requestAnimationFrame(() => {
       this.#settleTick = 0;
-      if (!this.#changed()) return;
-      clearTimeout(this.#settleTimer);
-      this.#settleTimer = setTimeout(() => {
-        this.#settleTimer = undefined;
-        this.#collect();
-        this.#deliver();
-      }, this.#settle);
+      if (this.#changed()) this.#settleThenDeliver();
     });
+  }
+
+  /** Each call restarts the wait, so entries go out once nothing has changed for `settle` ms. */
+  #settleThenDeliver(): void {
+    clearTimeout(this.#settleTimer);
+    this.#settleTimer = setTimeout(() => {
+      this.#settleTimer = undefined;
+      this.#collect();
+      this.#deliver();
+    }, this.#settle);
+  }
+
+  /**
+   * A `ResizeObserver` entry is a real change, to a probe or a target. Layout is
+   * already clean inside its callback, so reading rects here is cheap, and the
+   * entries go out in the same frame as the change.
+   */
+  #onResize(entries: ResizeObserverEntry[]): void {
+    for (const entry of entries) {
+      const target = this.#owners.get(entry.target) ?? entry.target;
+      if (this.#watches.has(target)) this.#dirty.add(target);
+    }
+    if (this.#dirty.size === 0) return;
+    if (this.#settle > 0) {
+      this.#settleThenDeliver();
+      return;
+    }
+    this.#collect();
+    this.#deliver();
+  }
+
+  #resizeObserver(): ResizeObserver {
+    this.#resize ??= new ResizeObserver((entries) => this.#onResize(entries));
+    return this.#resize;
+  }
+
+  /** Matches what's observed to `track`: a probe for position, the target itself for size. */
+  #applyTrack(target: Element, watch: Watch): void {
+    if (watch.anchor === '') return;
+    const resize = this.#resizeObserver();
+    if (this.#track === 'size') {
+      this.#dropProbe(watch);
+    } else if (watch.probe === null) {
+      watch.probe = createProbe(watch.anchor);
+      this.#owners.set(watch.probe, target);
+      resize.observe(watch.probe);
+    }
+
+    const sized = this.#track !== 'position';
+    if (sized === watch.sized) return;
+    watch.sized = sized;
+    // The border box, so a padding or border change counts as a resize.
+    if (sized) resize.observe(target, { box: 'border-box' });
+    else resize.unobserve(target);
+  }
+
+  #dropProbe(watch: Watch): void {
+    if (watch.probe === null) return;
+    this.#resize?.unobserve(watch.probe);
+    this.#owners.delete(watch.probe);
+    retireProbe(watch.probe);
+    watch.probe = null;
   }
 
   /**
@@ -367,30 +440,16 @@ export class GeometryObserver {
       watch.priorAnchorName = priors[index]?.inline ?? '';
 
       if (isSupported()) {
-        let name: string;
         if (anchorName === undefined) {
-          name = `--geo-probe-${++seq}`;
+          watch.anchor = `--geo-probe-${++seq}`;
           const prior = priors[index]?.computed ?? '';
           // anchor-name takes a list, so keep any name the page already set.
-          inlineStyle(target)?.setProperty('anchor-name', prior && prior !== 'none' ? `${prior}, ${name}` : name);
+          inlineStyle(target)?.setProperty('anchor-name', prior && prior !== 'none' ? `${prior}, ${watch.anchor}` : watch.anchor);
           watch.wroteAnchorName = true;
         } else {
-          name = anchorName;
+          watch.anchor = anchorName;
         }
-
-        const probe = createProbe(name, this.#track, this.#settle);
-        const release = new AbortController();
-        // transition-delay has already applied `settle` by the time this fires.
-        probe.addEventListener(
-          'transitionstart',
-          () => {
-            this.#dirty.add(target);
-            this.#schedule();
-          },
-          { signal: release.signal },
-        );
-        watch.probe = probe;
-        watch.release = release;
+        this.#applyTrack(target, watch);
       }
 
       this.#dirty.add(target);
@@ -401,8 +460,6 @@ export class GeometryObserver {
 
   #schedule(): void {
     if (this.#batch === 'sync') {
-      // Layout is already clean inside a transition event, so reading now is
-      // cheap and delivers a frame earlier than rAF would.
       this.#collect();
       this.#deliver();
       return;

@@ -1,26 +1,24 @@
-import type { Track } from './types.ts';
-
 /** Marks the group element in the DOM, so it is identifiable in devtools and in tests. */
 export const PROBE_GROUP_ATTRIBUTE = 'data-geometry-probes';
 
-/** Where a probe goes when it loses its anchor. Any length works, see {@link PROBE_STYLE}. */
+/** Where a probe's corner goes when it loses its anchor. Any length works, see {@link PROBE_STYLE}. */
 const LOST = '-99999px';
 
+/** How far past the viewport a probe reaches. Far enough that a target a long way off-screen still changes its size. */
+const FAR = '-1000000px';
+
 /**
- * Every declaration is set inline with `!important`. The transition is the whole
- * mechanism, and a reset like `* { transition: none !important }` (common in
- * reduced-motion and test setups) would otherwise turn reporting off without any
- * error. An important inline declaration beats an important stylesheet one.
+ * A probe stretches from its target's top-left corner to far past the viewport's
+ * bottom-right, so its size encodes the target's position: when layout moves the
+ * target, the probe resizes, and a `ResizeObserver` on it reports the move in the
+ * same frame. There's no transition, and no event to wait for.
  *
- * The fallbacks in `anchor()` and `anchor-size()` make teardown observable. With
- * no fallback, a lost anchor makes these properties compute to `auto`, a length
- * can't transition to `auto`, and no event fires. With one, the probe moves to the
- * fallback position and the transition reports it.
+ * The fallbacks in `anchor()` make teardown observable: a lost anchor puts the
+ * corner at the fallback, which resizes the probe too.
  *
- * `contain: strict` keeps a moving probe to one layout per frame. With
- * `content-visibility: hidden` instead, Chromium laid out twice per frame while
- * targets moved, and 1,000 constantly moving targets cost 42ms a frame instead of
- * 25ms. Neither changes what a reflow that moves nothing costs.
+ * Every declaration is set inline with `!important`, so page styles can't move,
+ * hide or resize a probe. The probe has no content, and `contain: strict` keeps its
+ * layout self-contained.
  */
 export const PROBE_STYLE: Readonly<Record<string, string>> = {
   position: 'fixed',
@@ -33,24 +31,9 @@ export const PROBE_STYLE: Readonly<Record<string, string>> = {
   contain: 'strict',
   top: `anchor(top, ${LOST})`,
   left: `anchor(left, ${LOST})`,
-  width: 'anchor-size(width, 0px)',
-  height: 'anchor-size(height, 0px)',
+  bottom: FAR,
+  right: FAR,
 };
-
-const TRACKED: Readonly<Record<Track, readonly string[]>> = {
-  both: ['top', 'left', 'width', 'height'],
-  position: ['top', 'left'],
-  size: ['width', 'height'],
-};
-
-/**
- * The 1ms duration only needs to be non-zero; the delay implements `settle`.
- * `transitionstart` waits for the delay, while `transitionrun` fires as soon as a
- * transition is created, which is why the observer listens for the former.
- */
-export function transitionFor(track: Track, settle: number): string {
-  return TRACKED[track].map((property) => `${property} 1ms ${settle}ms`).join(', ');
-}
 
 /**
  * All probes share one group, so the page's `<body>` gains one child rather than
@@ -113,10 +96,15 @@ function probeGroup(): HTMLElement {
   return group;
 }
 
+let raised = 0;
+
 /**
  * An anchor inside a top-layer element shown after the group can't be resolved,
  * so whenever something else enters the top layer (a popover, a dialog or a
  * fullscreen element), the group goes back on top.
+ *
+ * WebKit keeps a probe's lost anchor until the probe is restyled, so a custom
+ * property on the group, which every probe inherits, makes it look again.
  */
 export function raiseProbeGroup(opened: EventTarget | null): void {
   if (group === null || opened === group || !group.isConnected) return;
@@ -126,6 +114,7 @@ export function raiseProbeGroup(opened: EventTarget | null): void {
   } catch {
     // No top layer, so no order to restore.
   }
+  group.style.setProperty('--geometry-observer-raised', String(++raised));
 }
 
 export function releaseProbeGroup(): void {
@@ -138,12 +127,11 @@ export function releaseProbeGroup(): void {
 /** Probes are interchangeable, so unobserved ones are kept for reuse. */
 const pool: HTMLElement[] = [];
 
-export function createProbe(anchorName: string, track: Track, settle: number): HTMLElement {
+export function createProbe(anchorName: string): HTMLElement {
   const probe = pool.pop() ?? document.createElement('div');
   const { style } = probe;
   for (const [property, value] of Object.entries(PROBE_STYLE)) style.setProperty(property, value, 'important');
   style.setProperty('position-anchor', anchorName, 'important');
-  style.setProperty('transition', transitionFor(track, settle), 'important');
   probeGroup().append(probe);
   return probe;
 }

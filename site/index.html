@@ -1106,43 +1106,42 @@ observer.<span class="f">observe</span>(button);</pre>
       <section>
         <div class="head">
           <h2>How it works</h2>
-          <p>Three CSS features turn a layout change into a DOM event.</p>
+          <p>Anchor positioning turns a layout change into a <code>ResizeObserver</code> notification.</p>
         </div>
         <div class="steps">
           <div class="step">
             <h3>Anchor</h3>
             <p>
-              Each target gets a hidden probe in the top layer. <code>anchor()</code> and <code>anchor-size()</code> keep the probe's box
-              equal to the target's.
+              Each target gets a hidden probe in the top layer. <code>anchor()</code> pins the probe's top-left corner to the target's, and
+              the probe stretches far past the viewport.
             </p>
           </div>
           <div class="step">
-            <h3>Transition</h3>
-            <p>The probe's <code>top</code>, <code>left</code>, <code>width</code> and <code>height</code> have a 1ms transition.</p>
+            <h3>Resize</h3>
+            <p>The probe's size now encodes the target's position. When layout moves the target, the probe resizes.</p>
           </div>
           <div class="step">
-            <h3>Event</h3>
+            <h3>Observe</h3>
             <p>
-              When layout moves the target, the probe's transition starts and fires <code>transitionstart</code>. The observer reads the
-              target's rect.
+              A <code>ResizeObserver</code> on the probe, and on the target for its own size, reports it in the same frame. The observer
+              reads the target's rect.
             </p>
           </div>
         </div>
         <div class="code how-code">
-          <pre><span class="c">/* A simplified probe. The real one also has fallbacks and is a popover. */</span>
+          <pre><span class="c">/* A simplified probe. The real one also has fallbacks, and sits in a popover. */</span>
 .probe {
   position: fixed;
   <span class="k">position-anchor</span>: --target;
   <span class="k">top</span>: anchor(top);
   <span class="k">left</span>: anchor(left);
-  <span class="k">width</span>: anchor-size(width);
-  <span class="k">height</span>: anchor-size(height);
-  <span class="k">transition</span>: top 1ms, left 1ms, width 1ms, height 1ms;
+  <span class="k">bottom</span>: -1000000px;
+  <span class="k">right</span>: -1000000px;
 }</pre>
         </div>
         <p class="aside-note">
-          Scrolling doesn't change the probe's computed values, so it can't start a transition. The library covers it with one passive
-          scroll listener for the whole page, and only re-measures targets inside the element that scrolled.
+          Scrolling moves targets without a layout, so the probe doesn't resize. The library covers it with one passive scroll listener for
+          the whole page, and only re-measures targets inside the element that scrolled.
         </p>
       </section>
 
@@ -1185,7 +1184,7 @@ observer.<span class="f">observe</span>(button);</pre>
               </tr>
               <tr>
                 <td>An ancestor <code>transform</code> changed</td>
-                <td class="us y">yes</td>
+                <td class="us y">yes, except Firefox</td>
                 <td class="n">—</td>
                 <td class="y">yes</td>
                 <td class="y">yes</td>
@@ -1241,26 +1240,26 @@ observer.<span class="f">observe</span>(button);</pre>
               <tr>
                 <td>Nothing changes</td>
                 <td class="us">0 / 0</td>
-                <td>0.2 / 0.9</td>
+                <td>0.3 / 1.0</td>
                 <td>0 / 0.2</td>
               </tr>
               <tr>
                 <td>A reflow that moves nothing</td>
-                <td class="us">0.9 / 7.7</td>
+                <td class="us">0.7 / 6.3</td>
                 <td>0.1 / 0.6</td>
-                <td>0.1 / 0.8</td>
+                <td>0.3 / 0.7</td>
               </tr>
               <tr>
                 <td>Every element moves every frame</td>
-                <td class="us">3.4 / 28</td>
-                <td>0.1 / 0.7</td>
-                <td>0.7 / 4.2</td>
+                <td class="us">1.2 / 9.0</td>
+                <td>0.1 / 1.1</td>
+                <td>0.7 / 4.5</td>
               </tr>
               <tr>
                 <td>Scrolling</td>
-                <td class="us">0.6 / 4.0</td>
+                <td class="us">0.4 / 4.5</td>
                 <td>0.1 / 0.7</td>
-                <td>1.0 / 5.6</td>
+                <td>0.7 / 5.4</td>
               </tr>
             </tbody>
           </table>
@@ -1280,24 +1279,16 @@ observer.<span class="f">observe</span>(button);</pre>
           <div class="limit">
             <h3>Every reflow costs something</h3>
             <p>
-              Each probe is an anchor-positioned box, and Chromium lays out all of them on every reflow, even one that moves nothing. A
-              moving target also starts a transition every frame. For a single floating element, Floating UI is cheaper; for anything that
-              moves every frame, use a rAF loop.
+              Each probe is an anchor-positioned box, and Chromium lays out all of them on every reflow, even one that moves nothing. For a
+              single floating element, Floating UI is cheaper; for anything that moves every frame, use a rAF loop.
             </p>
           </div>
           <div class="limit">
-            <h3>Reports often arrive a frame late</h3>
+            <h3>Safari can miss a hidden 0×0 element</h3>
             <p>
-              In Chromium the transition event is dispatched in the frame after the change, so most changes are reported 16–19ms later. A
-              rAF loop sees them in the same frame. WebKit reports within a few milliseconds.
-            </p>
-          </div>
-          <div class="limit">
-            <h3>Safari misses CSS-only hiding</h3>
-            <p>
-              WebKit doesn't restyle a probe when its anchor goes away, so in Safari the observer also watches DOM mutations. Removal is
-              always reported, and so is hiding through a <code>style</code>, <code>class</code> or other attribute change. A target hidden
-              by CSS alone, like a <code>:hover</code> rule, isn't.
+              WebKit doesn't restyle a probe when its anchor goes away. An element with a size still shrinks to 0×0, which its own
+              <code>ResizeObserver</code> reports. For a 0×0 element the observer watches DOM mutations, so it misses one hidden by CSS
+              alone, like a <code>:hover</code> rule.
             </p>
           </div>
           <div class="limit">
@@ -1307,11 +1298,10 @@ observer.<span class="f">observe</span>(button);</pre>
             </p>
           </div>
           <div class="limit">
-            <h3>Firefox uses the fallback</h3>
+            <h3>Firefox misses ancestor transforms</h3>
             <p>
-              Firefox accepts the CSS, but doesn't yet support
-              <a href="https://caniuse.com/wf-anchor-positioning-animations">transitions on anchor-driven changes</a>. The observer detects
-              this and checks every frame instead, with the same API.
+              Firefox resolves <code>anchor()</code> against an element's untransformed box, so a change to an ancestor's
+              <code>transform</code> doesn't resize the probe and isn't reported. Everything else works as in the other engines.
             </p>
           </div>
         </div>
@@ -1324,7 +1314,7 @@ observer.<span class="f">observe</span>(button);</pre>
                 <th></th>
                 <th>Chromium 125+</th>
                 <th>Safari 26+</th>
-                <th>Firefox</th>
+                <th>Firefox (tested on 155)</th>
               </tr>
             </thead>
             <tbody>
@@ -1332,7 +1322,7 @@ observer.<span class="f">observe</span>(button);</pre>
                 <td>Mechanism</td>
                 <td>anchor probes</td>
                 <td>anchor probes</td>
-                <td>sampling fallback</td>
+                <td>anchor probes</td>
               </tr>
               <tr>
                 <td>Position, size and layout-driven moves</td>
@@ -1344,7 +1334,7 @@ observer.<span class="f">observe</span>(button);</pre>
                 <td>Ancestor <code>transform</code></td>
                 <td class="y">yes</td>
                 <td class="y">yes</td>
-                <td class="y">yes</td>
+                <td class="n">no</td>
               </tr>
               <tr>
                 <td><code>detached</code> state</td>
@@ -1355,14 +1345,14 @@ observer.<span class="f">observe</span>(button);</pre>
               <tr>
                 <td><code>hidden</code> state</td>
                 <td class="y">yes</td>
-                <td>from DOM changes</td>
+                <td>yes, except 0×0 by CSS alone</td>
                 <td class="y">yes</td>
               </tr>
               <tr>
                 <td>Work while the page is idle</td>
                 <td class="y">none</td>
                 <td class="y">none</td>
-                <td>one check per frame</td>
+                <td class="y">none</td>
               </tr>
             </tbody>
           </table>
@@ -1466,16 +1456,11 @@ observer.<span class="f">observe</span>(button);</pre>
           chipXY.firstElementChild.textContent = `x ${Math.round(x)}, y ${Math.round(y)}`;
         };
 
-        // 'sync' delivers inside the transition event rather than a frame later,
-        // which keeps the overlay in step while the box is being resized.
-        const observer = new GeometryObserver(
-          (batch) => {
-            entries += batch.length;
-            lastCallback = performance.now();
-            paint(batch.at(-1));
-          },
-          { batch: 'sync' },
-        );
+        const observer = new GeometryObserver((batch) => {
+          entries += batch.length;
+          lastCallback = performance.now();
+          paint(batch.at(-1));
+        });
         observer.observe(target);
 
         setInterval(() => {

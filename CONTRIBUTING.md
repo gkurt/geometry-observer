@@ -20,7 +20,7 @@ Tests run in real browsers. The mechanism is CSS, so a simulated DOM can't exerc
 
 - `test/observer.test.ts` — behaviour every engine must have, including engines on the sampling fallback.
 - `test/anchor.test.ts` — behaviour specific to anchor positioning, skipped where `isSupported()` is false. Anything the caller relies on on both paths belongs in `observer.test.ts` instead.
-- `test/capabilities.ts` — measures whether this engine reports a target hidden by CSS alone, so that test starts running on an engine once it supports it.
+- `test/capabilities.ts` — measures whether a probe in this engine notices its anchor hidden by CSS alone, so the 0×0 test that depends on it starts running on an engine once it works.
 - `test/react.test.tsx` — the `geometry-observer/react` hook: one stable ref, no re-subscribe when the callback changes, options updated in place.
 
 Firefox runs on CI only, because Playwright's Firefox can't launch on macOS 27. See the comment in `vitest.config.ts`.

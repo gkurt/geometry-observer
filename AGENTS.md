@@ -24,7 +24,7 @@ mechanical style rules. Fix the code; don't disable rules.
 ## Project Structure
 
 - `src/types.ts` — the public type surface. No logic.
-- `src/support.ts` — `isSupported()`, memoised.
+- `src/support.ts` — `isSupported()` and the WebKit measurement, memoised.
 - `src/probe.ts` — the hidden probe element: its style, the shared top-layer
   group, and the pool. The comments explain why each
   declaration is there; several matter in ways that aren't obvious.
@@ -45,43 +45,55 @@ mechanical style rules. Fix the code; don't disable rules.
 
 ## Architecture
 
-The mechanism is three CSS features chained into a DOM event:
+The mechanism turns layout into a `ResizeObserver` notification:
 
-1. `anchor()` / `anchor-size()` resolve a target's box into computed lengths on a
-   probe element, kept in sync by layout.
-2. Those are ordinary computed values, so they are transitionable.
-3. A running transition dispatches `transitionstart`, which is the notification.
+1. Each target gets a probe that stretches, with `anchor()`, from the target's
+   top-left corner to far past the viewport's bottom-right. Its size encodes the
+   target's position.
+2. When layout moves the target, the probe resizes, and a `ResizeObserver` on the
+   probe reports it in the same frame. The same `ResizeObserver` watches the
+   target's border box for its own size. `track: 'size'` uses no probe at all.
+3. Layout is clean inside a `ResizeObserver` callback, so the observer reads rects
+   and delivers right there.
 
-The probe only raises events; it is never measured. Entries always use
+This replaced an earlier design that transitioned the probe's insets and listened
+for `transitionstart`. That cost about 3.5× more under constant motion, reported a
+frame late in Chromium, and never fired in Firefox. `bench/` has the numbers.
+
+The probe only signals; it is never measured. Entries always use
 `target.getBoundingClientRect()`, because a probe that lost its anchor sits at its
 fallback position and no longer describes anything.
 
-Four details are easy to break without noticing. Each has a comment where it's
+These details are easy to break without noticing. Each has a comment where it's
 defined:
 
-- **`position-anchor`**, rather than naming the anchor inside each `anchor()`
-  call, is what makes the engine scroll-adjust the probe.
 - **`popover="manual"`** on the probe group puts every probe in the top layer.
-  Without it, a probe inside a transformed subtree moves with the target, its
-  insets never change, and ancestor `transform` changes go unreported. It's on
-  the group, not each probe: per-probe `showPopover()` made `observe()`
-  quadratic in Chromium (1,000 targets took over 4s) and made each probe's
-  share of a reflow up to twice as large. The group is re-raised whenever a
-  popover, dialog or fullscreen element opens, since an anchor in a later
-  top-layer element can't be resolved.
-- **Length fallbacks** in `anchor(top, …)` make teardown observable. Without one,
-  a lost anchor resolves to `auto`, and a length doesn't transition to `auto`.
-- **`!important` on every probe declaration**. Otherwise a reset like
-  `* { transition: none !important }` stops all reporting without any error.
+  Without it, a probe inside a transformed subtree moves with the target, and
+  ancestor `transform` changes go unreported. It's on the group, not each probe:
+  per-probe `showPopover()` made `observe()` quadratic in Chromium (1,000 targets
+  took over 4s) and made each probe's share of a reflow up to twice as large. The
+  group is re-raised whenever a popover, dialog or fullscreen element opens, since
+  an anchor in a later top-layer element can't be resolved.
+- **Length fallbacks** in `anchor(top, …)` make teardown observable: a lost anchor
+  puts the probe's corner at the fallback, which resizes the probe.
+- **`!important` on every probe declaration**, so page styles can't move, hide or
+  resize a probe.
 
-Scrolling can't start a transition (the engine applies scroll offsets after
-layout), so it's handled by one passive capture-phase listener that wakes the
-targets inside the element that scrolled.
+Every anchor-positioned probe is laid out on every reflow, whether or not its
+target moved. That cost doesn't depend on the probe's styles, containment or
+transitions; packing several targets into one probe helps by at most about 30%,
+because only the four inset properties accept `anchor()`.
 
-WebKit doesn't restyle a probe whose anchor is removed or hidden, so teardown
-raises no transition there. `src/support.ts` measures this, and in engines that
-need it the observer adds one `MutationObserver` on the document that wakes the
-targets a removal or attribute change can affect.
+Scrolling moves targets without a layout, so it's handled by one passive
+capture-phase listener that wakes the targets inside the element that scrolled.
+
+WebKit doesn't restyle a probe whose anchor is removed or hidden, so the probe
+doesn't resize. A target with a size still shrinks to 0×0, which its own
+`ResizeObserver` reports, but a 0×0 target doesn't. `src/support.ts` measures the
+bug, and in engines that have it the observer adds one `MutationObserver` on the
+document that wakes the targets a removal or attribute change can affect. Raising
+the group also sets a custom property on it, because WebKit keeps a probe's lost
+anchor until the probe is restyled.
 
 ## Coding Conventions
 
@@ -106,8 +118,8 @@ again and update it everywhere it appears. Don't add a performance or coverage
 claim you haven't measured.
 
 Engine differences are measured, not sniffed. `test/capabilities.ts` checks
-whether the current browser reports a target hidden by CSS alone, so that test
-starts running on an engine once it supports it.
+whether a probe in the current browser notices its anchor hidden by CSS alone, so
+the 0×0 test that depends on it starts running on an engine once it works.
 
 ## Documentation
 

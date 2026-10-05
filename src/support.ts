@@ -1,7 +1,7 @@
 import { GROUP_STYLE, PROBE_STYLE } from './probe.ts';
 
 interface Measurement {
-  /** The probe follows its anchor, and a change to the anchor starts a transition. */
+  /** The probe follows its anchor. */
   tracks: boolean;
   /** The probe falls back once its anchor is removed, with no other style change. */
   seesLoss: boolean;
@@ -20,15 +20,14 @@ function setImportant(element: HTMLElement, declarations: Readonly<Record<string
 /**
  * Measures a real probe, built the way the library builds one.
  *
- * Parsing support isn't enough. Firefox 155 accepts every declaration involved
- * and resolves the anchor, but an anchor-driven change never starts a transition,
- * so nothing would ever be reported. `getAnimations()` shows whether one started.
+ * Parsing support isn't enough: an engine can accept every declaration involved
+ * and still not resolve the anchor where the probe sits, in the top layer.
  *
  * WebKit (Safari 26 and 27) tracks the anchor but doesn't restyle the probe when
- * the anchor is removed or hidden: the probe keeps its last anchored box and no
- * transition runs, until something else restyles it.
+ * the anchor is removed or hidden: the probe keeps its last anchored box, so it
+ * doesn't resize, until something else restyles it.
  *
- * Costs three forced layouts, once per page.
+ * Costs two forced layouts, once per page.
  */
 function measure(): Measurement {
   // `body` is typed non-null but is missing when this runs from a script in <head>.
@@ -36,7 +35,7 @@ function measure(): Measurement {
   if (mount === null) return { tracks: false, seesLoss: false };
 
   const target = document.createElement('div');
-  target.style.cssText = `position:absolute;top:0;left:0;width:${WITNESS}px;height:0`;
+  target.style.cssText = `position:absolute;top:0;left:${WITNESS}px;width:1px;height:1px`;
   target.style.setProperty('anchor-name', WITNESS_ANCHOR);
 
   const group = document.createElement('div');
@@ -55,25 +54,19 @@ function measure(): Measurement {
     // No top layer. The measurement below still gives the answer.
   }
 
-  const resolves = Math.round(probe.getBoundingClientRect().width) === WITNESS;
-  // Before any other change to the probe: any restyle hides the WebKit bug.
+  const tracks = Math.round(probe.getBoundingClientRect().left) === WITNESS;
+  // With no other change to the probe first: any restyle hides the WebKit bug.
   target.remove();
-  const seesLoss = probe.getBoundingClientRect().width === 0;
-
-  mount.append(target);
-  probe.style.setProperty('transition', 'width 1ms', 'important');
-  target.style.width = `${WITNESS * 2}px`;
-  const transitions = probe.getAnimations().length > 0;
-  target.remove();
+  const seesLoss = Math.round(probe.getBoundingClientRect().left) !== WITNESS;
   group.remove();
 
-  return { tracks: resolves && transitions, seesLoss };
+  return { tracks, seesLoss };
 }
 
 function measurement(): Measurement | undefined {
   if (typeof CSS === 'undefined' || typeof document === 'undefined') return undefined;
   cached ??=
-    CSS.supports('anchor-name', '--x') && CSS.supports('top', 'anchor(top)') && CSS.supports('width', 'anchor-size(width)')
+    typeof ResizeObserver !== 'undefined' && CSS.supports('anchor-name', '--x') && CSS.supports('top', 'anchor(top)')
       ? measure()
       : { tracks: false, seesLoss: false };
   return cached;
@@ -81,7 +74,7 @@ function measurement(): Measurement | undefined {
 
 /**
  * Whether this browser can run the anchor-positioning mechanism (Chromium 125+,
- * Safari 26+). Where it can't, {@link GeometryObserver} falls back to one shared
+ * Safari 26+, Firefox, tested on 155). Where it can't, {@link GeometryObserver} falls back to one shared
  * `requestAnimationFrame` loop with the same API, so callers don't need to branch.
  */
 export function isSupported(): boolean {
