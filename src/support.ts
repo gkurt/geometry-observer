@@ -1,7 +1,7 @@
 import { GROUP_STYLE, PROBE_STYLE } from './probe.ts';
 
 interface Measurement {
-  /** The probe follows its anchor. */
+  /** The probe follows its anchor, and a change to the anchor starts a transition. */
   tracks: boolean;
   /** The probe falls back once its anchor is removed, with no other style change. */
   seesLoss: boolean;
@@ -20,15 +20,15 @@ function setImportant(element: HTMLElement, declarations: Readonly<Record<string
 /**
  * Measures a real probe, built the way the library builds one.
  *
- * Parsing support isn't enough. Firefox 155 accepts every declaration involved,
- * but `content-visibility: hidden` stops the anchor from resolving, and without it
- * anchor-driven changes still never start a transition.
+ * Parsing support isn't enough. Firefox 155 accepts every declaration involved
+ * and resolves the anchor, but an anchor-driven change never starts a transition,
+ * so nothing would ever be reported. `getAnimations()` shows whether one started.
  *
  * WebKit (Safari 26 and 27) tracks the anchor but doesn't restyle the probe when
  * the anchor is removed or hidden: the probe keeps its last anchored box and no
  * transition runs, until something else restyles it.
  *
- * Costs two forced layouts, once per page.
+ * Costs three forced layouts, once per page.
  */
 function measure(): Measurement {
   // `body` is typed non-null but is missing when this runs from a script in <head>.
@@ -55,12 +55,19 @@ function measure(): Measurement {
     // No top layer. The measurement below still gives the answer.
   }
 
-  const tracks = Math.round(probe.getBoundingClientRect().width) === WITNESS;
+  const resolves = Math.round(probe.getBoundingClientRect().width) === WITNESS;
+  // Before any other change to the probe: any restyle hides the WebKit bug.
   target.remove();
   const seesLoss = probe.getBoundingClientRect().width === 0;
+
+  mount.append(target);
+  probe.style.setProperty('transition', 'width 1ms', 'important');
+  target.style.width = `${WITNESS * 2}px`;
+  const transitions = probe.getAnimations().length > 0;
+  target.remove();
   group.remove();
 
-  return { tracks, seesLoss };
+  return { tracks: resolves && transitions, seesLoss };
 }
 
 function measurement(): Measurement | undefined {

@@ -17,8 +17,10 @@ const LOST = '-99999px';
  * can't transition to `auto`, and no event fires. With one, the probe moves to the
  * fallback position and the transition reports it.
  *
- * `content-visibility: hidden` changes nothing for a probe with no content, but
- * noticeably reduces its share of each reflow.
+ * `contain: strict` keeps a moving probe to one layout per frame. With
+ * `content-visibility: hidden` instead, Chromium laid out twice per frame while
+ * targets moved, and 1,000 constantly moving targets cost 42ms a frame instead of
+ * 25ms. Neither changes what a reflow that moves nothing costs.
  */
 export const PROBE_STYLE: Readonly<Record<string, string>> = {
   position: 'fixed',
@@ -28,7 +30,7 @@ export const PROBE_STYLE: Readonly<Record<string, string>> = {
   background: 'none',
   visibility: 'hidden',
   'pointer-events': 'none',
-  'content-visibility': 'hidden',
+  contain: 'strict',
   top: `anchor(top, ${LOST})`,
   left: `anchor(left, ${LOST})`,
   width: 'anchor-size(width, 0px)',
