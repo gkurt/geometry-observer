@@ -15,7 +15,15 @@ interface Watch {
    */
   wroteAnchorName: boolean;
   last: DOMRectReadOnly | null;
+  /** Geometry as last reported to the callback. What decides whether an entry is news. */
   key: string;
+  /**
+   * Geometry as of the last settle check — a separate baseline on purpose. Debounce
+   * has to ask "did anything move since I last looked", and `key` cannot answer
+   * that: it stays put until a delivery, so every frame after the first change
+   * would still look like a change and restart the timer forever.
+   */
+  seen: string;
 }
 
 /* One set of listeners and one fallback loop for every observer on the page,
@@ -155,6 +163,7 @@ export class GeometryObserver {
       wroteAnchorName: false,
       last: null,
       key: '',
+      seen: '',
     });
     this.#pendingObserve.push({ target, anchorName });
     if (this.#pendingObserve.length === 1) queueMicrotask(() => this.#attachPending());
@@ -267,13 +276,22 @@ export class GeometryObserver {
     });
   }
 
-  /** Whether anything already dirty has actually moved. Reads only. */
+  /**
+   * Whether anything dirty moved since the last check. Records nothing itself, so
+   * the delivery this eventually allows still measures against the geometry from
+   * before the churn and reports the whole burst as one entry.
+   */
   #changed(): boolean {
+    let moved = false;
     for (const target of this.#dirty) {
       const watch = this.#watches.get(target);
-      if (watch !== undefined && measure(target).key !== watch.key) return true;
+      if (watch === undefined) continue;
+      const { key } = measure(target);
+      if (key === watch.seen) continue;
+      watch.seen = key;
+      moved = true; // keep going: every watch needs its baseline refreshed
     }
-    return false;
+    return moved;
   }
 
   /**
@@ -358,6 +376,7 @@ export class GeometryObserver {
       if (key === watch.key) continue; // woken by a scroll with nothing to say
       const previousRect = watch.last;
       watch.key = key;
+      watch.seen = key;
       watch.last = rect;
       this.#records.push({
         target,
